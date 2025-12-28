@@ -85,6 +85,14 @@ android.bootstrap = sdl2
 # 接受SDK许可协议
 android.accept_sdk_license = True
 
+# =============================================================================
+# 【关键配置】强制使用系统级SDK，解决GitHub Actions许可问题
+# 说明：Buildozer默认会下载私有SDK到~/.buildozer，与系统SDK隔离
+#       必须显式指定路径，才能使用已接受许可的系统SDK
+# =============================================================================
+android.sdk_path = /usr/local/lib/android/sdk
+android.ndk_path = /usr/local/lib/android/sdk/ndk/25.2.9519653
+
 # Android Gradle插件版本
 android.gradle_dependencies = 
 

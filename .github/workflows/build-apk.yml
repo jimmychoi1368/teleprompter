@@ -1,28 +1,24 @@
 # =============================================================================
-# GitHub Actions - 自动打包 Android APK（终极解决方案）
+# GitHub Actions - 自动打包 Android APK（终极解决方案 v2.0）
 # =============================================================================
 # 【重要声明】本配置文件仅属于「teleprompter」仓库！
 # 与现有网站仓库无任何代码/配置交集，无冲突风险！
 #
 # 技术栈：Kivy + Vosk + Buildozer
-# 使用：android-actions/setup-android 自动配置SDK/许可/工具
 #
-# 触发条件：
-# - 推送到main分支
-# - 手动触发（workflow_dispatch）
+# 【核心修复】解决Buildozer与系统SDK隔离导致的许可问题：
+# - buildozer.spec中添加android.sdk_path/android.ndk_path强制使用系统SDK
+# - 本配置确保系统SDK正确安装并接受许可
 #
+# 触发条件：推送到main分支 / 手动触发
 # 输出：Android APK文件（ARM64架构）
 # =============================================================================
 
 name: Build Android APK
 
 on:
-  # 推送到main分支时自动构建
   push:
-    branches:
-      - main
-  
-  # 允许手动触发构建
+    branches: [main]
   workflow_dispatch:
     inputs:
       debug_enabled:
@@ -31,12 +27,13 @@ on:
         default: 'false'
 
 # =============================================================================
-# 全局环境变量 - 统一Android SDK路径，解决路径不统一问题
+# 全局环境变量 - 必须与buildozer.spec中的android.sdk_path/ndk_path一致！
 # =============================================================================
 env:
   ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
   ANDROID_HOME: /usr/local/lib/android/sdk
   ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/25.2.9519653
+  ANDROID_NDK_VERSION: 25.2.9519653
 
 jobs:
   build:
@@ -46,14 +43,12 @@ jobs:
     steps:
       # =========================================
       # 步骤1: 检出代码
-      # 作用：从GitHub仓库拉取teleprompter项目代码
       # =========================================
       - name: Checkout Repository
         uses: actions/checkout@v4
       
       # =========================================
-      # 步骤2: 设置Java环境
-      # 作用：安装JDK 17，Android打包必需
+      # 步骤2: 设置Java环境（Android打包必需）
       # =========================================
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -62,11 +57,8 @@ jobs:
           java-version: '17'
       
       # =========================================
-      # 步骤3: 配置Android SDK（核心步骤）
-      # 作用：使用android-actions/setup-android自动完成：
-      #       - 配置SDK路径
-      #       - 自动接受所有SDK许可（解决许可问题）
-      #       - 设置环境变量
+      # 步骤3: 配置Android SDK
+      # 作用：使用官方Action安装SDK并自动接受许可
       # =========================================
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
@@ -74,55 +66,74 @@ jobs:
           accept-android-sdk-licenses: true
       
       # =========================================
-      # 步骤4: 预写SDK许可文件（关键修复步骤）
-      # 作用：手动写入SDK许可文件，解决Buildozer内部调用
-      #       sdkmanager时无法继承许可状态的问题
-      # 【修改位置】Setup Android SDK后新增此步骤
-      # =========================================
-      - name: Pre-Write SDK License File
-        run: |
-          echo "📜 Pre-writing SDK license file..."
-          mkdir -p $ANDROID_SDK_ROOT/licenses
-          echo "8933bad161af4178b1185d1a37fbf41ea5269c55" > $ANDROID_SDK_ROOT/licenses/android-sdk-license
-          echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> $ANDROID_SDK_ROOT/licenses/android-sdk-license
-          echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" >> $ANDROID_SDK_ROOT/licenses/android-sdk-license
-          echo "✅ SDK license file written!"
-      
-      # =========================================
-      # 步骤5: 安装Android SDK组件
-      # 作用：安装打包所需的所有SDK组件：
-      #       - build-tools;34.0.0（编译工具，解决build-tools缺失）
-      #       - platform-tools（ADB等工具）
-      #       - platforms;android-34（目标平台）
-      #       - ndk;25.2.9519653（原生开发工具包，Kivy必需）
+      # 步骤4: 安装SDK组件到系统SDK目录
+      # 【关键】这些组件安装到buildozer.spec指定的路径
       # =========================================
       - name: Install Android SDK Components
         run: |
-          echo "📦 Installing Android SDK components..."
-          sdkmanager --install "build-tools;34.0.0"
-          sdkmanager --install "platform-tools"
-          sdkmanager --install "platforms;android-34"
-          sdkmanager --install "ndk;25.2.9519653"
-          echo "✅ All SDK components installed!"
+          echo "📦 Installing SDK components to system SDK..."
+          echo "SDK Path: $ANDROID_SDK_ROOT"
+          
+          # 安装所有必需组件
+          sdkmanager --sdk_root=$ANDROID_SDK_ROOT "platform-tools"
+          sdkmanager --sdk_root=$ANDROID_SDK_ROOT "platforms;android-33"
+          sdkmanager --sdk_root=$ANDROID_SDK_ROOT "build-tools;33.0.2"
+          sdkmanager --sdk_root=$ANDROID_SDK_ROOT "ndk;$ANDROID_NDK_VERSION"
+          
+          echo "✅ SDK components installed!"
       
       # =========================================
-      # 步骤6: 验证Android环境
-      # 作用：打印环境变量和已安装组件，便于调试
+      # 步骤5: 确保SDK许可文件存在
+      # 【关键】双重保障：即使Action已接受，仍手动写入
       # =========================================
-      - name: Verify Android Environment
+      - name: Ensure SDK License Files
         run: |
-          echo "🔍 Verifying Android environment..."
+          echo "📜 Ensuring SDK license files..."
+          mkdir -p $ANDROID_SDK_ROOT/licenses
+          
+          # 写入所有已知的许可hash
+          echo "8933bad161af4178b1185d1a37fbf41ea5269c55" > $ANDROID_SDK_ROOT/licenses/android-sdk-license
+          echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> $ANDROID_SDK_ROOT/licenses/android-sdk-license
+          echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" >> $ANDROID_SDK_ROOT/licenses/android-sdk-license
+          
+          # Android SDK Preview License
+          echo "84831b9409646a918e30573bab4c9c91346d8abd" > $ANDROID_SDK_ROOT/licenses/android-sdk-preview-license
+          
+          # NDK许可
+          mkdir -p $ANDROID_NDK_HOME
+          
+          echo "✅ License files written!"
+          echo "📋 License directory contents:"
+          ls -la $ANDROID_SDK_ROOT/licenses/
+      
+      # =========================================
+      # 步骤6: 验证SDK配置（调试用）
+      # =========================================
+      - name: Verify SDK Configuration
+        run: |
+          echo "🔍 Verifying SDK configuration..."
+          echo ""
+          echo "=== Environment Variables ==="
           echo "ANDROID_SDK_ROOT: $ANDROID_SDK_ROOT"
           echo "ANDROID_HOME: $ANDROID_HOME"
           echo "ANDROID_NDK_HOME: $ANDROID_NDK_HOME"
           echo ""
-          echo "📋 Installed SDK components:"
-          sdkmanager --list_installed
-          echo "✅ Android environment verified!"
+          echo "=== SDK Directory Structure ==="
+          ls -la $ANDROID_SDK_ROOT/
+          echo ""
+          echo "=== Installed Components ==="
+          sdkmanager --list_installed 2>/dev/null | head -20 || true
+          echo ""
+          echo "=== NDK Directory ==="
+          ls -la $ANDROID_SDK_ROOT/ndk/ 2>/dev/null || echo "NDK directory check"
+          echo ""
+          echo "=== buildozer.spec SDK Config ==="
+          grep -E "android.sdk_path|android.ndk_path" buildozer.spec || echo "SDK paths not found in spec"
+          echo ""
+          echo "✅ SDK verification complete!"
       
       # =========================================
       # 步骤7: 设置Python环境
-      # 作用：安装Python 3.10，Kivy/Buildozer运行环境
       # =========================================
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -131,19 +142,16 @@ jobs:
       
       # =========================================
       # 步骤8: 安装系统依赖
-      # 作用：安装Kivy和Buildozer编译所需的系统库：
-      #       - SDL2系列（图形/音频）
-      #       - FFmpeg（媒体处理）
-      #       - GStreamer（多媒体框架）
-      #       - 编译工具链
       # =========================================
       - name: Install System Dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            python3-pip \
             build-essential \
             git \
+            zip \
+            unzip \
+            python3-pip \
             ffmpeg \
             libsdl2-dev \
             libsdl2-image-dev \
@@ -164,18 +172,12 @@ jobs:
             automake \
             libtool \
             pkg-config \
-            zip \
-            unzip \
             wget \
             lld \
             ccache
       
       # =========================================
-      # 步骤9: 安装Python依赖
-      # 作用：安装Buildozer和Kivy打包工具链：
-      #       - buildozer（Android打包工具）
-      #       - cython 0.29.33（兼容版本，避免编译错误）
-      #       - kivy 2.2.1（UI框架）
+      # 步骤9: 安装Python/Buildozer依赖
       # =========================================
       - name: Install Python Dependencies
         run: |
@@ -188,18 +190,16 @@ jobs:
       
       # =========================================
       # 步骤10: 下载Vosk语音模型
-      # 作用：下载提词器项目所需的Vosk英语语音识别模型
       # =========================================
       - name: Download Vosk Model
         run: |
           echo "📥 Downloading Vosk English Model..."
           wget -q https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip
           unzip -q vosk-model-small-en-us-0.15.zip
-          echo "✅ Vosk model downloaded successfully!"
+          echo "✅ Vosk model ready!"
       
       # =========================================
       # 步骤11: 配置Buildozer缓存
-      # 作用：缓存Buildozer下载的依赖，加速后续构建
       # =========================================
       - name: Cache Buildozer
         uses: actions/cache@v4
@@ -207,64 +207,48 @@ jobs:
           path: |
             ~/.buildozer
             .buildozer
-          key: ${{ runner.os }}-buildozer-${{ hashFiles('buildozer.spec') }}
+          key: ${{ runner.os }}-buildozer-v2-${{ hashFiles('buildozer.spec') }}
           restore-keys: |
-            ${{ runner.os }}-buildozer-
+            ${{ runner.os }}-buildozer-v2-
       
       # =========================================
-      # 步骤12: 配置Buildozer环境变量
-      # 作用：将Android SDK/NDK路径写入环境，
-      #       确保Buildozer能正确识别安卓环境
+      # 步骤12: 清理旧的Buildozer私有SDK（如有缓存）
+      # 【关键】确保使用系统SDK而非缓存的私有SDK
       # =========================================
-      - name: Configure Buildozer Environment
+      - name: Clean Buildozer Private SDK
         run: |
-          echo "🔧 Configuring Buildozer environment..."
-          # 创建.buildozer目录
-          mkdir -p ~/.buildozer/android/platform
-          
-          # 写入环境变量到bashrc确保子进程可用
-          echo "export ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> ~/.bashrc
-          echo "export ANDROID_HOME=$ANDROID_HOME" >> ~/.bashrc
-          echo "export ANDROID_NDK_HOME=$ANDROID_NDK_HOME" >> ~/.bashrc
-          echo "export PATH=\$PATH:$ANDROID_SDK_ROOT/tools:$ANDROID_SDK_ROOT/platform-tools" >> ~/.bashrc
-          
-          echo "✅ Buildozer environment configured!"
+          echo "🧹 Cleaning any cached private SDK..."
+          rm -rf ~/.buildozer/android/platform/android-sdk 2>/dev/null || true
+          rm -rf ~/.buildozer/android/platform/android-ndk* 2>/dev/null || true
+          echo "✅ Private SDK cleaned!"
       
       # =========================================
-      # 步骤13: 初始化Buildozer并接受许可
-      # 作用：通过Buildozer再次确认SDK许可已接受
-      # =========================================
-      - name: Initialize Buildozer
-        run: |
-          echo "🔧 Initializing Buildozer..."
-          yes | buildozer android licenses 2>/dev/null || true
-          echo "✅ Buildozer initialized!"
-      
-      # =========================================
-      # 步骤14: 构建APK（核心构建步骤）
-      # 作用：使用Buildozer编译Android APK
-      #       - 传入所有必要的环境变量
-      #       - 使用-v参数显示详细日志
-      #       - 首次构建约需15-30分钟
+      # 步骤13: 构建APK
+      # 【核心】Buildozer将使用buildozer.spec中指定的系统SDK路径
       # =========================================
       - name: Build APK
         run: |
           echo "🔨 Building Android APK..."
+          echo "================================================"
+          echo "SDK Path (from buildozer.spec): /usr/local/lib/android/sdk"
+          echo "NDK Path (from buildozer.spec): /usr/local/lib/android/sdk/ndk/$ANDROID_NDK_VERSION"
+          echo "================================================"
+          echo ""
           echo "This may take 15-30 minutes on first build..."
+          echo ""
+          
+          # 构建APK
           buildozer -v android debug
         env:
           BUILDOZER_WARN_ON_ROOT: 0
           ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
           ANDROID_HOME: ${{ env.ANDROID_HOME }}
           ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_HOME }}
-          # 指定NDK版本，避免自动下载
-          ANDROIDNDK: ${{ env.ANDROID_NDK_HOME }}
           ANDROIDSDK: ${{ env.ANDROID_SDK_ROOT }}
+          ANDROIDNDK: ${{ env.ANDROID_NDK_HOME }}
       
       # =========================================
-      # 步骤15: 上传APK产物
-      # 作用：将编译好的APK上传为GitHub Artifact
-      #       保留30天，可从Actions页面下载
+      # 步骤14: 上传APK
       # =========================================
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
@@ -275,27 +259,27 @@ jobs:
           if-no-files-found: error
       
       # =========================================
-      # 步骤16: 构建摘要
-      # 作用：在GitHub Actions Summary页面显示构建信息
+      # 步骤15: 构建摘要
       # =========================================
       - name: Build Summary
+        if: always()
         run: |
           echo "## 🎉 Build Complete!" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 📱 APK Information" >> $GITHUB_STEP_SUMMARY
+          if ls bin/*.apk 1>/dev/null 2>&1; then
+            echo "### ✅ APK Generated Successfully!" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            ls -lh bin/*.apk >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### ❌ APK Generation Failed" >> $GITHUB_STEP_SUMMARY
+            echo "Check the build logs for details." >> $GITHUB_STEP_SUMMARY
+          fi
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          ls -lh bin/*.apk 2>/dev/null || echo "APK file generated"
-          ls -lh bin/*.apk >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "Check artifacts for APK" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 📥 Download" >> $GITHUB_STEP_SUMMARY
-          echo "Download the APK from the **Artifacts** section above." >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 📋 Build Details" >> $GITHUB_STEP_SUMMARY
-          echo "- **Build Type:** Debug" >> $GITHUB_STEP_SUMMARY
+          echo "### 📋 Build Configuration" >> $GITHUB_STEP_SUMMARY
+          echo "- **SDK Path:** /usr/local/lib/android/sdk" >> $GITHUB_STEP_SUMMARY
+          echo "- **NDK Version:** $ANDROID_NDK_VERSION" >> $GITHUB_STEP_SUMMARY
+          echo "- **Target API:** 33" >> $GITHUB_STEP_SUMMARY
+          echo "- **Min API:** 24 (Android 7.0+)" >> $GITHUB_STEP_SUMMARY
           echo "- **Architecture:** ARM64" >> $GITHUB_STEP_SUMMARY
-          echo "- **Min Android:** 7.0+ (API 24)" >> $GITHUB_STEP_SUMMARY
-          echo "- **Target Android:** 14 (API 34)" >> $GITHUB_STEP_SUMMARY
-          echo "- **Build Tools:** 34.0.0" >> $GITHUB_STEP_SUMMARY
-          echo "- **NDK Version:** 25.2.9519653" >> $GITHUB_STEP_SUMMARY
