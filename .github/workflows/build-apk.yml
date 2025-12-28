@@ -74,7 +74,22 @@ jobs:
           accept-android-sdk-licenses: true
       
       # =========================================
-      # 步骤4: 安装Android SDK组件
+      # 步骤4: 预写SDK许可文件（关键修复步骤）
+      # 作用：手动写入SDK许可文件，解决Buildozer内部调用
+      #       sdkmanager时无法继承许可状态的问题
+      # 【修改位置】Setup Android SDK后新增此步骤
+      # =========================================
+      - name: Pre-Write SDK License File
+        run: |
+          echo "📜 Pre-writing SDK license file..."
+          mkdir -p $ANDROID_SDK_ROOT/licenses
+          echo "8933bad161af4178b1185d1a37fbf41ea5269c55" > $ANDROID_SDK_ROOT/licenses/android-sdk-license
+          echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> $ANDROID_SDK_ROOT/licenses/android-sdk-license
+          echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" >> $ANDROID_SDK_ROOT/licenses/android-sdk-license
+          echo "✅ SDK license file written!"
+      
+      # =========================================
+      # 步骤5: 安装Android SDK组件
       # 作用：安装打包所需的所有SDK组件：
       #       - build-tools;34.0.0（编译工具，解决build-tools缺失）
       #       - platform-tools（ADB等工具）
@@ -91,7 +106,7 @@ jobs:
           echo "✅ All SDK components installed!"
       
       # =========================================
-      # 步骤5: 验证Android环境
+      # 步骤6: 验证Android环境
       # 作用：打印环境变量和已安装组件，便于调试
       # =========================================
       - name: Verify Android Environment
@@ -106,7 +121,7 @@ jobs:
           echo "✅ Android environment verified!"
       
       # =========================================
-      # 步骤6: 设置Python环境
+      # 步骤7: 设置Python环境
       # 作用：安装Python 3.10，Kivy/Buildozer运行环境
       # =========================================
       - name: Set up Python
@@ -115,7 +130,7 @@ jobs:
           python-version: '3.10'
       
       # =========================================
-      # 步骤7: 安装系统依赖
+      # 步骤8: 安装系统依赖
       # 作用：安装Kivy和Buildozer编译所需的系统库：
       #       - SDL2系列（图形/音频）
       #       - FFmpeg（媒体处理）
@@ -156,7 +171,7 @@ jobs:
             ccache
       
       # =========================================
-      # 步骤8: 安装Python依赖
+      # 步骤9: 安装Python依赖
       # 作用：安装Buildozer和Kivy打包工具链：
       #       - buildozer（Android打包工具）
       #       - cython 0.29.33（兼容版本，避免编译错误）
@@ -172,7 +187,7 @@ jobs:
             kivy==2.2.1
       
       # =========================================
-      # 步骤9: 下载Vosk语音模型
+      # 步骤10: 下载Vosk语音模型
       # 作用：下载提词器项目所需的Vosk英语语音识别模型
       # =========================================
       - name: Download Vosk Model
@@ -183,7 +198,7 @@ jobs:
           echo "✅ Vosk model downloaded successfully!"
       
       # =========================================
-      # 步骤10: 配置Buildozer缓存
+      # 步骤11: 配置Buildozer缓存
       # 作用：缓存Buildozer下载的依赖，加速后续构建
       # =========================================
       - name: Cache Buildozer
@@ -197,7 +212,7 @@ jobs:
             ${{ runner.os }}-buildozer-
       
       # =========================================
-      # 步骤11: 配置Buildozer环境变量
+      # 步骤12: 配置Buildozer环境变量
       # 作用：将Android SDK/NDK路径写入环境，
       #       确保Buildozer能正确识别安卓环境
       # =========================================
@@ -216,7 +231,7 @@ jobs:
           echo "✅ Buildozer environment configured!"
       
       # =========================================
-      # 步骤12: 初始化Buildozer并接受许可
+      # 步骤13: 初始化Buildozer并接受许可
       # 作用：通过Buildozer再次确认SDK许可已接受
       # =========================================
       - name: Initialize Buildozer
@@ -226,7 +241,7 @@ jobs:
           echo "✅ Buildozer initialized!"
       
       # =========================================
-      # 步骤13: 构建APK（核心构建步骤）
+      # 步骤14: 构建APK（核心构建步骤）
       # 作用：使用Buildozer编译Android APK
       #       - 传入所有必要的环境变量
       #       - 使用-v参数显示详细日志
@@ -247,7 +262,7 @@ jobs:
           ANDROIDSDK: ${{ env.ANDROID_SDK_ROOT }}
       
       # =========================================
-      # 步骤14: 上传APK产物
+      # 步骤15: 上传APK产物
       # 作用：将编译好的APK上传为GitHub Artifact
       #       保留30天，可从Actions页面下载
       # =========================================
@@ -260,7 +275,7 @@ jobs:
           if-no-files-found: error
       
       # =========================================
-      # 步骤15: 构建摘要
+      # 步骤16: 构建摘要
       # 作用：在GitHub Actions Summary页面显示构建信息
       # =========================================
       - name: Build Summary
