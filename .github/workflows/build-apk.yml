@@ -119,16 +119,82 @@ jobs:
             ${{ runner.os }}-buildozer-
       
       # =========================================
-      # 步骤7: 初始化Buildozer
+      # 步骤7: 设置Android SDK环境
+      # =========================================
+      - name: Setup Android SDK
+        run: |
+          echo "📦 Setting up Android SDK..."
+          # 设置ANDROID_HOME环境变量
+          export ANDROID_HOME=$HOME/.android/sdk
+          export ANDROID_SDK_ROOT=$ANDROID_HOME
+          mkdir -p $ANDROID_HOME/cmdline-tools
+          
+          # 下载Android命令行工具
+          wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O cmdline-tools.zip
+          unzip -q cmdline-tools.zip -d $ANDROID_HOME/cmdline-tools
+          mv $ANDROID_HOME/cmdline-tools/cmdline-tools $ANDROID_HOME/cmdline-tools/latest
+          
+          # 添加到PATH
+          export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH
+          
+          echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
+          echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> $GITHUB_ENV
+          echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> $GITHUB_PATH
+          echo "$ANDROID_HOME/platform-tools" >> $GITHUB_PATH
+          
+          echo "✅ Android SDK environment configured!"
+      
+      # =========================================
+      # 步骤8: 接受Android SDK许可
+      # =========================================
+      - name: Accept Android SDK licenses
+        run: |
+          echo "📜 Accepting Android SDK licenses..."
+          export ANDROID_HOME=$HOME/.android/sdk
+          export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$PATH
+          
+          # 创建licenses目录
+          mkdir -p $ANDROID_HOME/licenses
+          
+          # 预先接受所有许可（写入许可hash）
+          echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > $ANDROID_HOME/licenses/android-sdk-license
+          echo "84831b9409646a918e30573bab4c9c91346d8abd" >> $ANDROID_HOME/licenses/android-sdk-license
+          echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> $ANDROID_HOME/licenses/android-sdk-license
+          
+          # 使用sdkmanager接受所有许可
+          yes | sdkmanager --licenses || true
+          
+          echo "✅ SDK licenses accepted!"
+      
+      # =========================================
+      # 步骤9: 安装Android SDK组件
+      # =========================================
+      - name: Install Android SDK Components
+        run: |
+          echo "📥 Installing Android SDK components..."
+          export ANDROID_HOME=$HOME/.android/sdk
+          export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$PATH
+          
+          # 安装必要的SDK组件
+          sdkmanager --install \
+            "platform-tools" \
+            "platforms;android-33" \
+            "build-tools;33.0.2" \
+            "ndk;25.2.9519653"
+          
+          echo "✅ Android SDK components installed!"
+      
+      # =========================================
+      # 步骤10: 初始化Buildozer
       # =========================================
       - name: Initialize Buildozer
         run: |
           echo "🔧 Initializing Buildozer..."
-          # 接受所有SDK许可
+          # 再次通过buildozer接受许可（确保完整性）
           yes | buildozer android licenses || true
       
       # =========================================
-      # 步骤8: 构建APK
+      # 步骤11: 构建APK
       # =========================================
       - name: Build APK
         run: |
@@ -138,9 +204,11 @@ jobs:
         env:
           # 禁用交互式提示
           BUILDOZER_WARN_ON_ROOT: 0
+          ANDROID_HOME: ${{ env.ANDROID_HOME }}
+          ANDROID_SDK_ROOT: ${{ env.ANDROID_HOME }}
       
       # =========================================
-      # 步骤9: 上传APK产物
+      # 步骤12: 上传APK产物
       # =========================================
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
@@ -150,7 +218,7 @@ jobs:
           retention-days: 30
       
       # =========================================
-      # 步骤10: 构建摘要
+      # 步骤13: 构建摘要
       # =========================================
       - name: Build Summary
         run: |
