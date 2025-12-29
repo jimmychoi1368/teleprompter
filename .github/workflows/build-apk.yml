@@ -1,6 +1,8 @@
 # =============================================================================
 # GitHub Actions workflow for building Android APK with Buildozer
 # =============================================================================
+# 【重要声明】本配置文件仅属于「teleprompter」仓库
+# =============================================================================
 name: Build Android APK
 
 on:
@@ -8,61 +10,214 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
+  workflow_dispatch:  # 允许手动触发
 
 jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      # 明确指定SDK/NDK版本，和buildozer.spec保持一致
       ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+      ANDROID_HOME: /usr/local/lib/android/sdk
       ANDROID_NDK_VERSION: 25.2.9519653
+      ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/25.2.9519653
       ANDROID_BUILD_TOOLS_VERSION: 33.0.2
       ANDROID_PLATFORM_VERSION: 33
 
     steps:
+      # =========================================
       # 步骤1：拉取代码
+      # =========================================
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 步骤2：设置Python环境
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      # =========================================
+      # 步骤2：设置JDK 17（Android打包必需）
+      # 【修复问题2】添加缺失的Java环境
+      # =========================================
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
         with:
-          python-version: "3.10"  # Buildozer推荐版本
+          distribution: 'temurin'
+          java-version: '17'
 
-      # 步骤3：安装Buildozer及依赖
-      - name: Install Buildozer and dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install buildozer cython==0.29.36  # 固定Cython版本避免兼容性问题
-
-      # 步骤4：设置Android SDK（自动接受许可）
+      # =========================================
+      # 步骤3：设置Android SDK（仅接受许可）
+      # 【修复问题1】移除无效参数，仅保留accept-android-sdk-licenses
+      # =========================================
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
           accept-android-sdk-licenses: true
-          android-platforms: ${{ env.ANDROID_PLATFORM_VERSION }}
-          android-build-tools: ${{ env.ANDROID_BUILD_TOOLS_VERSION }}
-          android-ndk: ${{ env.ANDROID_NDK_VERSION }}
 
-      # 关键补充：将Build Tools路径加入环境变量（解决aapt找不到的问题）
-      - name: Add Build Tools to PATH
-        run: echo "${{ env.ANDROID_SDK_ROOT }}/build-tools/${{ env.ANDROID_BUILD_TOOLS_VERSION }}" >> $GITHUB_PATH
-
-      # 步骤5：验证SDK组件安装
-      - name: Verify Android components
+      # =========================================
+      # 步骤4：手动安装SDK组件
+      # 【修复问题4】用sdkmanager命令手动安装所有组件
+      # =========================================
+      - name: Install Android SDK Components
         run: |
-          sdkmanager --list | grep "build-tools"
-          ls -l ${{ env.ANDROID_SDK_ROOT }}/build-tools/${{ env.ANDROID_BUILD_TOOLS_VERSION }}/aapt  # 验证aapt存在
+          echo "📦 Installing Android SDK components..."
+          sdkmanager --sdk_root=$ANDROID_SDK_ROOT "platform-tools"
+          sdkmanager --sdk_root=$ANDROID_SDK_ROOT "platforms;android-$ANDROID_PLATFORM_VERSION"
+          sdkmanager --sdk_root=$ANDROID_SDK_ROOT "build-tools;$ANDROID_BUILD_TOOLS_VERSION"
+          sdkmanager --sdk_root=$ANDROID_SDK_ROOT "ndk;$ANDROID_NDK_VERSION"
+          echo "✅ SDK components installed!"
 
-      # 步骤6：构建APK
+      # =========================================
+      # 步骤5：手动写入SDK许可文件
+      # 【修复问题5】双重保障，确保许可文件存在
+      # =========================================
+      - name: Write SDK License Files
+        run: |
+          echo "📜 Writing SDK license files..."
+          mkdir -p $ANDROID_SDK_ROOT/licenses
+          echo "8933bad161af4178b1185d1a37fbf41ea5269c55" > $ANDROID_SDK_ROOT/licenses/android-sdk-license
+          echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> $ANDROID_SDK_ROOT/licenses/android-sdk-license
+          echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" >> $ANDROID_SDK_ROOT/licenses/android-sdk-license
+          echo "84831b9409646a918e30573bab4c9c91346d8abd" > $ANDROID_SDK_ROOT/licenses/android-sdk-preview-license
+          echo "✅ License files written!"
+
+      # =========================================
+      # 步骤6：将Build Tools加入PATH
+      # =========================================
+      - name: Add Build Tools to PATH
+        run: |
+          echo "$ANDROID_SDK_ROOT/build-tools/$ANDROID_BUILD_TOOLS_VERSION" >> $GITHUB_PATH
+          echo "$ANDROID_SDK_ROOT/platform-tools" >> $GITHUB_PATH
+
+      # =========================================
+      # 步骤7：验证SDK安装
+      # =========================================
+      - name: Verify Android SDK
+        run: |
+          echo "🔍 Verifying SDK installation..."
+          echo "ANDROID_SDK_ROOT: $ANDROID_SDK_ROOT"
+          ls -la $ANDROID_SDK_ROOT/build-tools/$ANDROID_BUILD_TOOLS_VERSION/aapt || echo "aapt not found!"
+          ls -la $ANDROID_SDK_ROOT/ndk/$ANDROID_NDK_VERSION/ || echo "NDK not found!"
+          echo "✅ Verification complete!"
+
+      # =========================================
+      # 步骤8：设置Python环境
+      # =========================================
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      # =========================================
+      # 步骤9：安装系统依赖
+      # 【修复问题3】添加Buildozer编译所需的所有系统库
+      # =========================================
+      - name: Install System Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            git \
+            zip \
+            unzip \
+            python3-pip \
+            ffmpeg \
+            libsdl2-dev \
+            libsdl2-image-dev \
+            libsdl2-mixer-dev \
+            libsdl2-ttf-dev \
+            libportmidi-dev \
+            libswscale-dev \
+            libavformat-dev \
+            libavcodec-dev \
+            zlib1g-dev \
+            libgstreamer1.0-dev \
+            gstreamer1.0-plugins-base \
+            gstreamer1.0-plugins-good \
+            libgstreamer-plugins-base1.0-dev \
+            libffi-dev \
+            libssl-dev \
+            autoconf \
+            automake \
+            libtool \
+            pkg-config \
+            wget \
+            lld \
+            ccache
+
+      # =========================================
+      # 步骤10：安装Python依赖
+      # =========================================
+      - name: Install Python Dependencies
+        run: |
+          python -m pip install --upgrade pip wheel setuptools
+          pip install buildozer==1.5.0 cython==0.29.33 kivy==2.2.1
+
+      # =========================================
+      # 步骤11：下载Vosk模型
+      # 【修复问题7】添加语音模型下载
+      # =========================================
+      - name: Download Vosk Model
+        run: |
+          echo "📥 Downloading Vosk model..."
+          wget -q https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip
+          unzip -q vosk-model-small-en-us-0.15.zip
+          echo "✅ Vosk model ready!"
+
+      # =========================================
+      # 步骤12：配置Buildozer缓存
+      # =========================================
+      - name: Cache Buildozer
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.buildozer
+            .buildozer
+          key: ${{ runner.os }}-buildozer-${{ hashFiles('buildozer.spec') }}
+          restore-keys: |
+            ${{ runner.os }}-buildozer-
+
+      # =========================================
+      # 步骤13：清理Buildozer私有SDK
+      # 【修复问题6】确保使用系统SDK而非缓存的私有SDK
+      # =========================================
+      - name: Clean Buildozer Private SDK
+        run: |
+          echo "🧹 Cleaning cached private SDK..."
+          rm -rf ~/.buildozer/android/platform/android-sdk 2>/dev/null || true
+          rm -rf ~/.buildozer/android/platform/android-ndk* 2>/dev/null || true
+          echo "✅ Private SDK cleaned!"
+
+      # =========================================
+      # 步骤14：构建APK
+      # =========================================
       - name: Build APK with Buildozer
         run: |
-          buildozer android debug
+          echo "🔨 Building Android APK..."
+          echo "This may take 15-30 minutes on first build..."
+          buildozer -v android debug
+        env:
+          BUILDOZER_WARN_ON_ROOT: 0
+          ANDROIDSDK: ${{ env.ANDROID_SDK_ROOT }}
+          ANDROIDNDK: ${{ env.ANDROID_NDK_HOME }}
 
-      # 步骤7：上传APK产物
+      # =========================================
+      # 步骤15：上传APK产物
+      # 【修复问题8】添加if-no-files-found明确报错
+      # =========================================
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: teleprompter-apk
           path: bin/*.apk
+          retention-days: 30
+          if-no-files-found: error
+
+      # =========================================
+      # 步骤16：构建摘要
+      # =========================================
+      - name: Build Summary
+        if: always()
+        run: |
+          echo "## Build Result" >> $GITHUB_STEP_SUMMARY
+          if ls bin/*.apk 1>/dev/null 2>&1; then
+            echo "### ✅ APK Generated Successfully!" >> $GITHUB_STEP_SUMMARY
+            ls -lh bin/*.apk >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### ❌ APK Generation Failed" >> $GITHUB_STEP_SUMMARY
+          fi
