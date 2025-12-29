@@ -1,73 +1,61 @@
+﻿# =============================================================================
+# Buildozer 閰嶇疆鏂囦欢 - English Teleprompter
 # =============================================================================
-# Buildozer 配置文件 - English Teleprompter
-# =============================================================================
-# 【重要声明】本配置文件仅属于「teleprompter」仓库！
-# 与现有网站仓库无任何代码/配置交集，无冲突风险！
-#
-# 用途：使用Buildozer将Kivy应用打包为Android APK
-# 环境：GitHub Codespaces / GitHub Actions
+# 銆愰噸瑕佸０鏄庛€戞湰閰嶇疆鏂囦欢浠呭睘浜庛€宼eleprompter銆嶄粨搴擄紒
+# 涓庣幇鏈夌綉绔欎粨搴撴棤浠讳綍浠ｇ爜/閰嶇疆浜ら泦锛屾棤鍐茬獊椋庨櫓锛?#
+# 鐢ㄩ€旓細浣跨敤Buildozer灏咾ivy搴旂敤鎵撳寘涓篈ndroid APK
+# 鐜锛欸itHub Codespaces / GitHub Actions
 # =============================================================================
 
 [app]
 
-# 应用名称（显示在安卓桌面）
-title = English Teleprompter
+# 搴旂敤鍚嶇О锛堟樉绀哄湪瀹夊崜妗岄潰锛?title = English Teleprompter
 
-# 包名（唯一标识符，格式：org.组织名.应用名）
+# 鍖呭悕锛堝敮涓€鏍囪瘑绗︼紝鏍煎紡锛歰rg.缁勭粐鍚?搴旂敤鍚嶏級
 package.name = teleprompter
 
-# 包域名
-package.domain = org.teleprompter
+# 鍖呭煙鍚?package.domain = org.teleprompter
 
-# 源代码目录（当前目录）
-source.dir = .
+# 婧愪唬鐮佺洰褰曪紙褰撳墠鐩綍锛?source.dir = .
 
-# 源代码文件类型
-source.include_exts = py,png,jpg,kv,atlas,json
+# 婧愪唬鐮佹枃浠剁被鍨?source.include_exts = py,png,jpg,kv,atlas,json
 
-# 排除的文件/目录（减小APK体积）
-source.exclude_dirs = tests, bin, .git, .github, __pycache__, .venv
+# 鎺掗櫎鐨勬枃浠?鐩綍锛堝噺灏廇PK浣撶Н锛?source.exclude_dirs = tests, bin, .git, .github, __pycache__, .venv
 
-# 主程序入口
-source.main = main.py
+# 涓荤▼搴忓叆鍙?source.main = main.py
 
-# 应用版本
+# 搴旂敤鐗堟湰
 version = 1.0.0
 
-# 需要的Python包
-# vosk: 离线语音识别引擎
-# 注意：vosk会在打包时自动包含
-requirements = python3,kivy==2.2.1,vosk,pyjnius
+# 闇€瑕佺殑Python鍖?# vosk: 绂荤嚎璇煶璇嗗埆寮曟搸
+# 娉ㄦ剰锛歷osk浼氬湪鎵撳寘鏃惰嚜鍔ㄥ寘鍚?requirements = python3,kivy==2.2.1,vosk,pyjnius
 
-# 预设模式：标准Python
+# 棰勮妯″紡锛氭爣鍑哖ython
 presplash.filename = 
 
-# 应用图标（可选，使用默认）
-icon.filename = 
+# 搴旂敤鍥炬爣锛堝彲閫夛紝浣跨敤榛樿锛?icon.filename = 
 
-# 屏幕方向：纵向（适配平板竖屏）
-orientation = portrait
+# 灞忓箷鏂瑰悜锛氱旱鍚戯紙閫傞厤骞虫澘绔栧睆锛?orientation = portrait
 
-# 是否全屏
+# 鏄惁鍏ㄥ睆
 fullscreen = 0
 
 # =============================================================================
-# Android 配置
+# Android 閰嶇疆
 # =============================================================================
 
 [app:android]
 
-# Android API版本配置
+# Android API鐗堟湰閰嶇疆
 android.api = 33
 android.minapi = 24
 android.ndk = 25b
 android.sdk = 33
 
-# 目标架构（ARM64，现代安卓设备主流架构）
+# 鐩爣鏋舵瀯锛圓RM64锛岀幇浠ｅ畨鍗撹澶囦富娴佹灦鏋勶級
 android.archs = arm64-v8a
 
-# 权限声明（蓝牙麦克风必需）
-android.permissions = 
+# 鏉冮檺澹版槑锛堣摑鐗欓害鍏嬮蹇呴渶锛?android.permissions = 
     RECORD_AUDIO,
     BLUETOOTH,
     BLUETOOTH_ADMIN,
@@ -76,68 +64,63 @@ android.permissions =
     MODIFY_AUDIO_SETTINGS,
     INTERNET
 
-# 允许备份
+# 鍏佽澶囦唤
 android.allow_backup = True
 
-# 使用SDL2后端
+# 浣跨敤SDL2鍚庣
 android.bootstrap = sdl2
 
-# 接受SDK许可协议
+# 鎺ュ彈SDK璁稿彲鍗忚
 android.accept_sdk_license = True
 
 # =============================================================================
-# 【关键配置】强制使用系统级SDK，解决GitHub Actions许可问题
-# 说明：Buildozer默认会下载私有SDK到~/.buildozer，与系统SDK隔离
-#       必须显式指定路径，才能使用已接受许可的系统SDK
+# 銆愬叧閿厤缃€戝己鍒朵娇鐢ㄧ郴缁熺骇SDK锛岃В鍐矴itHub Actions璁稿彲闂
+# 璇存槑锛欱uildozer榛樿浼氫笅杞界鏈塖DK鍒皛/.buildozer锛屼笌绯荤粺SDK闅旂
+#       蹇呴』鏄惧紡鎸囧畾璺緞锛屾墠鑳戒娇鐢ㄥ凡鎺ュ彈璁稿彲鐨勭郴缁烻DK
 # =============================================================================
 android.sdk_path = /usr/local/lib/android/sdk
 android.ndk_path = /usr/local/lib/android/sdk/ndk/25.2.9519653
 
-# Android Gradle插件版本
+# Android Gradle鎻掍欢鐗堟湰
 android.gradle_dependencies = 
 
-# 额外的Java库
-# android.add_jars = 
+# 棰濆鐨凧ava搴?# android.add_jars = 
 
-# 额外的AAR库
-# android.add_aars = 
+# 棰濆鐨凙AR搴?# android.add_aars = 
 
-# 额外的Gradle仓库
+# 棰濆鐨凣radle浠撳簱
 # android.add_gradle_repositories = 
 
-# 额外的Gradle依赖
+# 棰濆鐨凣radle渚濊禆
 # android.gradle_dependencies = 
 
-# 特性声明
-android.features = android.hardware.microphone
+# 鐗规€у０鏄?android.features = android.hardware.microphone
 
-# 元数据
-android.meta_data = 
+# 鍏冩暟鎹?android.meta_data = 
 
-# 额外的清单XML
+# 棰濆鐨勬竻鍗昘ML
 # android.extra_manifest_xml = 
 
-# 额外的清单应用参数
-# android.extra_manifest_application_arguments = 
+# 棰濆鐨勬竻鍗曞簲鐢ㄥ弬鏁?# android.extra_manifest_application_arguments = 
 
-# 资源目录
+# 璧勬簮鐩綍
 # android.add_assets = 
 
 # =============================================================================
-# Buildozer 配置
+# Buildozer 閰嶇疆
 # =============================================================================
 
-[buildozer]
+`nandroid.sdk_path = /usr/local/lib/android/sdk`nandroid.ndk_path = /usr/local/lib/android/sdk/ndk/25.2.9519653[buildozer]
 
-# 日志级别（2=详细）
-log_level = 2
+# 鏃ュ織绾у埆锛?=璇︾粏锛?log_level = 2
 
-# 构建警告模式
+# 鏋勫缓璀﹀憡妯″紡
 warn_on_root = 1
 
-# 构建目录
+# 鏋勫缓鐩綍
 build_dir = ./.buildozer
 
-# 输出目录
+# 杈撳嚭鐩綍
 bin_dir = ./bin
+
 

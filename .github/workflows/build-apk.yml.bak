@@ -203,7 +203,6 @@ jobs:
       # =========================================
       - name: Cache Buildozer
         uses: actions/cache@v4
-      
         with:
           path: |
             ~/.buildozer
@@ -211,12 +210,6 @@ jobs:
           key: ${{ runner.os }}-buildozer-v2-${{ hashFiles('buildozer.spec') }}
           restore-keys: |
             ${{ runner.os }}-buildozer-v2-
-       - name: Clean Buildozer Private SDK
-  run: |
-    echo "🧹 Cleaning any cached private SDK..."
-    rm -rf ~/.buildozer/android/platform/android-sdk 2>/dev/null || true
-    rm -rf ~/.buildozer/android/platform/android-ndk* 2>/dev/null || true
-    echo "✅ Private SDK cleaned!"
       
       # =========================================
       # 步骤12: 清理旧的Buildozer私有SDK（如有缓存）
