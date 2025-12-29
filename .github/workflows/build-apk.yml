@@ -125,11 +125,20 @@ jobs:
       # =========================================
       # 步骤9：安装系统依赖
       # 【关键】确保所有Kivy编译依赖都安装
+      # 【修复】移除Ubuntu 22.04+不可用的包：
+      #   - libtinfo5 → 已被libtinfo6替代，不需要单独安装
+      #   - libncurses5-dev → 使用libncurses-dev替代
       # =========================================
       - name: Install System Dependencies
         run: |
           echo "📦 Installing system dependencies..."
+          echo "System info: $(lsb_release -a 2>/dev/null || cat /etc/os-release)"
+          echo ""
+          
+          # 更新包列表
           sudo apt-get update
+          
+          # 安装核心依赖（已验证在Ubuntu 22.04/24.04可用）
           sudo apt-get install -y \
             build-essential \
             git \
@@ -164,13 +173,19 @@ jobs:
             cmake \
             ninja-build \
             libltdl-dev \
-            libncurses5-dev \
+            libncurses-dev \
             libncursesw5-dev \
-            libtinfo5 \
             patch \
-            ant
+            ant \
+            openjdk-17-jdk
           
+          echo ""
           echo "✅ System dependencies installed!"
+          
+          # 验证关键依赖
+          echo ""
+          echo "📋 Verifying installed packages:"
+          dpkg -l | grep -E "libsdl2|libncurses|autoconf" | head -10 || true
 
       # =========================================
       # 步骤10：安装Python依赖
