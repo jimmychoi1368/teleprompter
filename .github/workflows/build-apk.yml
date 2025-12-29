@@ -13,9 +13,7 @@
 # 触发条件：推送到main分支 / 手动触发
 # 输出：Android APK文件（ARM64架构）
 # =============================================================================
-
 name: Build Android APK
-
 on:
   push:
     branches: [main]
@@ -25,7 +23,6 @@ on:
         description: 'Enable debug mode'
         required: false
         default: 'false'
-
 # =============================================================================
 # 全局环境变量 - 必须与buildozer.spec中的android.sdk_path/ndk_path一致！
 # =============================================================================
@@ -34,7 +31,6 @@ env:
   ANDROID_HOME: /usr/local/lib/android/sdk
   ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/25.2.9519653
   ANDROID_NDK_VERSION: 25.2.9519653
-
 jobs:
   build:
     name: Build APK
@@ -199,11 +195,10 @@ jobs:
           echo "✅ Vosk model ready!"
       
       # =========================================
-      # 步骤11: 配置Buildozer缓存
+      # 步骤11: 配置Buildozer缓存 + 清理私有SDK
       # =========================================
       - name: Cache Buildozer
         uses: actions/cache@v4
-      
         with:
           path: |
             ~/.buildozer
@@ -211,17 +206,7 @@ jobs:
           key: ${{ runner.os }}-buildozer-v2-${{ hashFiles('buildozer.spec') }}
           restore-keys: |
             ${{ runner.os }}-buildozer-v2-
-       - name: Clean Buildozer Private SDK
-  run: |
-    echo "🧹 Cleaning any cached private SDK..."
-    rm -rf ~/.buildozer/android/platform/android-sdk 2>/dev/null || true
-    rm -rf ~/.buildozer/android/platform/android-ndk* 2>/dev/null || true
-    echo "✅ Private SDK cleaned!"
       
-      # =========================================
-      # 步骤12: 清理旧的Buildozer私有SDK（如有缓存）
-      # 【关键】确保使用系统SDK而非缓存的私有SDK
-      # =========================================
       - name: Clean Buildozer Private SDK
         run: |
           echo "🧹 Cleaning any cached private SDK..."
@@ -230,7 +215,7 @@ jobs:
           echo "✅ Private SDK cleaned!"
       
       # =========================================
-      # 步骤13: 构建APK
+      # 步骤12: 构建APK
       # 【核心】Buildozer将使用buildozer.spec中指定的系统SDK路径
       # =========================================
       - name: Build APK
@@ -255,7 +240,7 @@ jobs:
           ANDROIDNDK: ${{ env.ANDROID_NDK_HOME }}
       
       # =========================================
-      # 步骤14: 上传APK
+      # 步骤13: 上传APK
       # =========================================
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
@@ -266,7 +251,7 @@ jobs:
           if-no-files-found: error
       
       # =========================================
-      # 步骤15: 构建摘要
+      # 步骤14: 构建摘要
       # =========================================
       - name: Build Summary
         if: always()
