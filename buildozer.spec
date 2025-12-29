@@ -2,6 +2,11 @@
 # Buildozer 配置文件 - English Teleprompter
 # =============================================================================
 # 【重要声明】本配置文件仅属于「teleprompter」仓库！
+# 
+# 【修复说明】
+# 错误日志：build-tools folder not found /home/runner/.buildozer/android/platform/android-sdk/build-tools
+# 根本原因：之前使用了错误的section名称[app:android]，Buildozer不识别
+# 修复方案：所有android配置必须在[app]section中，使用android.xxx格式
 # =============================================================================
 
 [app]
@@ -15,39 +20,33 @@ version = 1.0.0
 # 源代码配置
 source.dir = .
 source.main = main.py
-
-# 【修复①】包含所有必要的文件扩展名
-# 添加 Vosk 模型需要的扩展名：fst, conf, bin, txt, md
 source.include_exts = py,png,jpg,kv,atlas,json,fst,conf,bin,txt,md,scorer
 
-# 【修复②】明确包含 Vosk 模型目录
-# 使用 source.include_patterns 确保模型目录被打包
-source.include_patterns = vosk-model-small-en-us-0.15/*
-
 # 排除不需要的目录
-source.exclude_dirs = tests, bin, .git, .github, __pycache__, .venv, .buildozer
+source.exclude_dirs = tests,bin,.git,.github,__pycache__,.venv,.buildozer
 
 # 屏幕方向和全屏
 orientation = portrait
 fullscreen = 0
 
-# 【修复③】Python 依赖
-# 注意：vosk 可能无法直接通过 p4a 编译，先尝试，如果失败需要用预编译方案
-requirements = python3,kivy==2.2.1,pyjnius,android
+# =============================================================================
+# Python依赖
+# 【注意】暂时不包含vosk，因为它可能无法通过p4a编译
+# =============================================================================
+requirements = python3,kivy==2.2.1,pyjnius
 
 # =============================================================================
-# Android 配置
+# Android 配置（必须在[app]section中！）
 # =============================================================================
 
-[app:android]
-
-# Android API 版本
+# Android API版本
 android.api = 33
 android.minapi = 24
-android.sdk = 33
-
-# 【修复④】NDK 版本 - 使用正确的版本标识
 android.ndk = 25c
+
+# 【关键修复】指定build-tools版本，避免Buildozer自动下载36.1
+# 对应日志错误：license is not accepted: Android SDK Build-Tools 36.1
+android.build_tools_version = 34.0.0
 
 # 目标架构
 android.archs = arm64-v8a
@@ -55,13 +54,15 @@ android.archs = arm64-v8a
 # 权限声明
 android.permissions = RECORD_AUDIO,BLUETOOTH,BLUETOOTH_ADMIN,BLUETOOTH_CONNECT,BLUETOOTH_SCAN,MODIFY_AUDIO_SETTINGS,INTERNET
 
-# 使用 SDL2 后端
+# 使用SDL2后端
 android.bootstrap = sdl2
 
-# 接受 SDK 许可
+# 【关键修复】接受SDK许可
+# 对应日志错误：license is not accepted
 android.accept_sdk_license = True
 
-# 【关键】指定系统 SDK/NDK 路径
+# 【关键修复】指定系统SDK路径
+# 对应日志错误：build-tools folder not found /home/runner/.buildozer/android/platform/android-sdk
 android.sdk_path = /usr/local/lib/android/sdk
 android.ndk_path = /usr/local/lib/android/sdk/ndk/25.2.9519653
 

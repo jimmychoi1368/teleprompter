@@ -92,20 +92,37 @@ jobs:
 
       # =========================================
       # 步骤7：安装SDK组件
+      # 【修复】对应日志错误：license is not accepted: Android SDK Build-Tools 36.1
+      # 解决方案：预先安装所有可能需要的build-tools版本
       # =========================================
       - name: Install SDK Components
         run: |
           echo "📦 Installing SDK components..."
+          
+          # 再次接受所有许可（确保36.x版本也被接受）
+          yes | sdkmanager --licenses || true
+          
+          # 安装platform-tools
           sdkmanager "platform-tools"
+          
+          # 安装platforms
           sdkmanager "platforms;android-33"
-          sdkmanager "build-tools;33.0.2"
+          sdkmanager "platforms;android-34"
+          
+          # 【关键】安装所有可能需要的build-tools版本
+          # 包括36.x版本，避免Buildozer自动下载时许可问题
+          sdkmanager "build-tools;36.0.0" || true
+          sdkmanager "build-tools;35.0.0" || true
           sdkmanager "build-tools;34.0.0"
+          sdkmanager "build-tools;33.0.2"
+          
+          # 安装NDK
           sdkmanager "ndk;$ANDROID_NDK_VERSION"
           
           echo "✅ SDK components installed!"
           echo ""
-          echo "📋 Installed components:"
-          sdkmanager --list_installed
+          echo "📋 Installed build-tools versions:"
+          ls -la $ANDROID_SDK_ROOT/build-tools/
 
       # =========================================
       # 步骤8：配置环境变量和PATH
@@ -232,15 +249,33 @@ jobs:
           echo "✅ Vosk model ready in project root!"
 
       # =========================================
-      # 步骤12：彻底清理Buildozer缓存
+      # 步骤12：预配置Buildozer的SDK目录
+      # 【修复】对应日志错误：build-tools folder not found /home/runner/.buildozer/android/platform/android-sdk
+      # 解决方案：创建Buildozer期望的目录结构，并链接到系统SDK
       # =========================================
-      - name: Clean Buildozer Cache
+      - name: Setup Buildozer SDK Directory
         run: |
-          echo "🧹 Cleaning all Buildozer caches..."
+          echo "🔧 Setting up Buildozer SDK directory..."
+          
+          # 清理旧的Buildozer缓存
           rm -rf ~/.buildozer 2>/dev/null || true
-          rm -rf ~/.cache/buildozer 2>/dev/null || true
           rm -rf .buildozer 2>/dev/null || true
-          echo "✅ Caches cleaned!"
+          
+          # 创建Buildozer期望的目录结构
+          mkdir -p ~/.buildozer/android/platform
+          
+          # 创建符号链接，让Buildozer使用系统SDK
+          ln -sf $ANDROID_SDK_ROOT ~/.buildozer/android/platform/android-sdk
+          
+          # 验证链接
+          echo ""
+          echo "📁 Buildozer SDK directory:"
+          ls -la ~/.buildozer/android/platform/
+          echo ""
+          echo "📁 Linked SDK build-tools:"
+          ls -la ~/.buildozer/android/platform/android-sdk/build-tools/ || echo "Checking..."
+          
+          echo "✅ Buildozer SDK directory configured!"
 
       # =========================================
       # 步骤13：验证构建环境
