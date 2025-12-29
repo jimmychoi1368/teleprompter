@@ -92,37 +92,48 @@ jobs:
 
       # =========================================
       # 步骤7：安装SDK组件
-      # 【修复】对应日志错误：license is not accepted: Android SDK Build-Tools 36.1
-      # 解决方案：预先安装所有可能需要的build-tools版本
+      # 【修复v2】安装所有可用的build-tools版本，包括36.0.0
+      # 注意：36.1.0在sdkmanager中可能不存在，实际是36.0.0
       # =========================================
       - name: Install SDK Components
         run: |
           echo "📦 Installing SDK components..."
           
-          # 再次接受所有许可（确保36.x版本也被接受）
+          # 列出所有可用的build-tools版本
+          echo "📋 Available build-tools versions:"
+          sdkmanager --list 2>/dev/null | grep "build-tools" | head -20 || true
+          echo ""
+          
+          # 再次接受所有许可
           yes | sdkmanager --licenses || true
           
           # 安装platform-tools
           sdkmanager "platform-tools"
           
-          # 安装platforms
+          # 安装platforms（多版本支持）
           sdkmanager "platforms;android-33"
           sdkmanager "platforms;android-34"
+          sdkmanager "platforms;android-35" || true
           
-          # 【关键】安装所有可能需要的build-tools版本
-          # 包括36.x版本，避免Buildozer自动下载时许可问题
-          sdkmanager "build-tools;36.0.0" || true
-          sdkmanager "build-tools;35.0.0" || true
-          sdkmanager "build-tools;34.0.0"
-          sdkmanager "build-tools;33.0.2"
+          # 【关键修复】安装所有可能需要的build-tools版本
+          # 按优先级从高到低安装
+          echo "📦 Installing build-tools..."
+          sdkmanager "build-tools;36.0.0" && echo "✓ 36.0.0 installed" || echo "✗ 36.0.0 not available"
+          sdkmanager "build-tools;35.0.0" && echo "✓ 35.0.0 installed" || echo "✗ 35.0.0 not available"
+          sdkmanager "build-tools;34.0.0" && echo "✓ 34.0.0 installed" || echo "✗ 34.0.0 not available"
+          sdkmanager "build-tools;33.0.2" && echo "✓ 33.0.2 installed" || echo "✗ 33.0.2 not available"
           
           # 安装NDK
           sdkmanager "ndk;$ANDROID_NDK_VERSION"
           
-          echo "✅ SDK components installed!"
+          echo ""
+          echo "✅ SDK components installation complete!"
           echo ""
           echo "📋 Installed build-tools versions:"
           ls -la $ANDROID_SDK_ROOT/build-tools/
+          echo ""
+          echo "📋 Build-tools 36.0.0 contents (if exists):"
+          ls -la $ANDROID_SDK_ROOT/build-tools/36.0.0/ 2>/dev/null || ls -la $ANDROID_SDK_ROOT/build-tools/35.0.0/ 2>/dev/null || echo "Checking other versions..."
 
       # =========================================
       # 步骤8：配置环境变量和PATH
@@ -250,35 +261,49 @@ jobs:
 
       # =========================================
       # 步骤12：预配置Buildozer的SDK目录
-      # 【修复】对应日志错误：build-tools folder not found /home/runner/.buildozer/android/platform/android-sdk
-      # 解决方案：创建Buildozer期望的目录结构，并链接到系统SDK
+      # 【修复v2】创建完整的目录结构并确保Buildozer能找到所有工具
       # =========================================
       - name: Setup Buildozer SDK Directory
         run: |
           echo "🔧 Setting up Buildozer SDK directory..."
           
-          # 清理旧的Buildozer缓存
+          # 【重要】彻底清理所有Buildozer缓存，避免使用旧配置
           rm -rf ~/.buildozer 2>/dev/null || true
           rm -rf .buildozer 2>/dev/null || true
+          rm -rf ~/.android 2>/dev/null || true
           
-          # 创建Buildozer期望的目录结构
+          # 创建Buildozer期望的完整目录结构
           mkdir -p ~/.buildozer/android/platform
           
-          # 创建符号链接，让Buildozer使用系统SDK
+          # 【关键】创建符号链接，让Buildozer使用系统SDK
           ln -sf $ANDROID_SDK_ROOT ~/.buildozer/android/platform/android-sdk
           
-          # 验证链接
+          # 同时创建NDK符号链接
+          mkdir -p ~/.buildozer/android/platform/android-ndk
+          ln -sf $ANDROID_NDK_HOME ~/.buildozer/android/platform/android-ndk-r25c || true
+          
+          # 验证符号链接是否正确
           echo ""
-          echo "📁 Buildozer SDK directory:"
+          echo "📁 Buildozer SDK directory structure:"
           ls -la ~/.buildozer/android/platform/
           echo ""
+          echo "📁 Linked SDK contents:"
+          ls -la ~/.buildozer/android/platform/android-sdk/ | head -10
+          echo ""
           echo "📁 Linked SDK build-tools:"
-          ls -la ~/.buildozer/android/platform/android-sdk/build-tools/ || echo "Checking..."
+          ls -la ~/.buildozer/android/platform/android-sdk/build-tools/
+          echo ""
+          
+          # 【验证】确保aapt和aidl存在
+          LATEST_BT=$(ls -d $ANDROID_SDK_ROOT/build-tools/* 2>/dev/null | sort -V | tail -1)
+          echo "📋 Latest build-tools: $LATEST_BT"
+          echo "📋 aapt location: $(ls $LATEST_BT/aapt 2>/dev/null || echo 'NOT FOUND')"
+          echo "📋 aidl location: $(ls $LATEST_BT/aidl 2>/dev/null || echo 'NOT FOUND')"
           
           echo "✅ Buildozer SDK directory configured!"
 
       # =========================================
-      # 步骤13：验证构建环境
+      # 步骤13：验证构建环境（详细版）
       # =========================================
       - name: Verify Build Environment
         run: |
@@ -292,18 +317,37 @@ jobs:
           echo ""
           echo "=== Buildozer Version ==="
           buildozer --version
+          pip show buildozer | grep -E "Name|Version"
           echo ""
           echo "=== Android SDK ==="
           echo "ANDROID_SDK_ROOT: $ANDROID_SDK_ROOT"
           echo "ANDROID_HOME: $ANDROID_HOME"
+          echo "ANDROID_NDK_HOME: $ANDROID_NDK_HOME"
+          echo ""
+          echo "=== Build-tools versions installed ==="
           ls -la $ANDROID_SDK_ROOT/build-tools/
           echo ""
-          echo "=== aapt Check ==="
-          which aapt && aapt version || echo "aapt not found in PATH"
-          ls -la $ANDROID_SDK_ROOT/build-tools/34.0.0/aapt || echo "aapt not in 34.0.0"
+          echo "=== 检查每个build-tools版本的关键工具 ==="
+          for bt_dir in $ANDROID_SDK_ROOT/build-tools/*/; do
+            bt_version=$(basename $bt_dir)
+            echo "--- $bt_version ---"
+            ls $bt_dir/aapt 2>/dev/null && echo "  ✓ aapt exists" || echo "  ✗ aapt missing"
+            ls $bt_dir/aapt2 2>/dev/null && echo "  ✓ aapt2 exists" || echo "  ✗ aapt2 missing"
+            ls $bt_dir/aidl 2>/dev/null && echo "  ✓ aidl exists" || echo "  ✗ aidl missing"
+          done
+          echo ""
+          echo "=== Buildozer符号链接验证 ==="
+          ls -la ~/.buildozer/android/platform/ 2>/dev/null || echo "Buildozer platform dir not found"
+          ls -la ~/.buildozer/android/platform/android-sdk/build-tools/ 2>/dev/null || echo "Linked build-tools not found"
+          echo ""
+          echo "=== buildozer.spec关键配置 ==="
+          grep -E "android.sdk_path|android.ndk_path|android.ndk|android.api|requirements|source.include" buildozer.spec || true
           echo ""
           echo "=== Project Files ==="
           ls -la
+          echo ""
+          echo "=== Vosk Model Check ==="
+          ls -la vosk-model-small-en-us-0.15/ 2>/dev/null | head -5 || echo "Vosk model directory not found!"
           echo ""
           echo "✅ Environment verification complete!"
 

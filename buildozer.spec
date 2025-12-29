@@ -20,7 +20,13 @@ version = 1.0.0
 # 源代码配置
 source.dir = .
 source.main = main.py
+
+# 【修复】包含所有必要的文件扩展名
 source.include_exts = py,png,jpg,kv,atlas,json,fst,conf,bin,txt,md,scorer
+
+# 【修复】显式包含Vosk模型目录（确保递归打包）
+# 注意：需要将模型目录列为include_patterns
+source.include_patterns = assets/*,images/*,vosk-model-small-en-us-0.15/*
 
 # 排除不需要的目录
 source.exclude_dirs = tests,bin,.git,.github,__pycache__,.venv,.buildozer
@@ -31,22 +37,32 @@ fullscreen = 0
 
 # =============================================================================
 # Python依赖
-# 【注意】暂时不包含vosk，因为它可能无法通过p4a编译
+# 【重要说明】
+# 1. vosk是C++原生库，无法直接通过python-for-android编译
+# 2. 正确的做法是使用vosk-android预编译AAR包
+# 3. 当前先验证基本Kivy打包能否成功，再处理vosk集成
+# 
+# 【临时方案】使用不含vosk的依赖，验证打包流程
+# 【最终方案】需要使用p4a的recipes或预编译库来集成vosk
 # =============================================================================
-requirements = python3,kivy==2.2.1,pyjnius
+requirements = python3,kivy==2.2.1,pyjnius,android
 
 # =============================================================================
 # Android 配置（必须在[app]section中！）
 # =============================================================================
 
 # Android API版本
-android.api = 33
+# 【重要】api版本要和platforms安装的版本匹配
+android.api = 34
 android.minapi = 24
+
+# 【重要】NDK版本格式是25c（对应ndk;25.2.9519653）
 android.ndk = 25c
 
-# 【关键修复】指定build-tools版本，避免Buildozer自动下载36.1
+# 【关键修复】指定build-tools版本，避免Buildozer自动下载最新版
 # 对应日志错误：license is not accepted: Android SDK Build-Tools 36.1
-android.build_tools_version = 34.0.0
+# 注意：正确的配置名称是 android.build_tools（不是android.build_tools_version）
+android.build_tools = 34.0.0
 
 # 目标架构
 android.archs = arm64-v8a
