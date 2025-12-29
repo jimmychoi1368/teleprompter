@@ -1,4 +1,4 @@
-﻿[app]
+[app]
 title = English Teleprompter
 package.name  = teleprompter
 package.domain = org.teleprompter
