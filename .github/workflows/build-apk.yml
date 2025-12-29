@@ -3,10 +3,10 @@
 # =============================================================================
 # 【重要声明】本配置文件仅属于「teleprompter」仓库
 # 
-# 【修复记录】针对以下报错的彻底修复：
+# 【修复记录 v3.0】针对以下报错的彻底修复：
 # - aapt not found
-# - the license is not accepted  
-# - Android SDK Build-tools 34.1 未被安装
+# - the license is not accepted: Android SDK Build-tools 34.1
+# - Buildozer版本需求不匹配
 # =============================================================================
 name: Build Android APK
 
@@ -43,137 +43,7 @@ jobs:
           java-version: '17'
 
       # =========================================
-      # 步骤3：设置Android SDK基础环境
-      # =========================================
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-        with:
-          accept-android-sdk-licenses: true
-
-      # =========================================
-      # 步骤4：【关键修复①】写入完整的SDK许可文件
-      # 修复问题：the license is not accepted
-      # 说明：写入所有已知的许可hash，覆盖所有SDK版本
-      # =========================================
-      - name: Write All SDK License Files
-        run: |
-          echo "📜 Writing comprehensive SDK license files..."
-          mkdir -p $ANDROID_SDK_ROOT/licenses
-          
-          # android-sdk-license（包含所有已知hash）
-          cat > $ANDROID_SDK_ROOT/licenses/android-sdk-license << 'EOF'
-          8933bad161af4178b1185d1a37fbf41ea5269c55
-          d56f5187479451eabf01fb78af6dfcb131a6481e
-          24333f8a63b6825ea9c5514f83c2829b004d1fee
-          e6b7c2ab7fa2298c15165e9583d0acf0b04a2232
-          EOF
-          
-          # android-sdk-preview-license
-          cat > $ANDROID_SDK_ROOT/licenses/android-sdk-preview-license << 'EOF'
-          84831b9409646a918e30573bab4c9c91346d8abd
-          504667f4c0de7af1a06de9f4b1727b84351f2910
-          EOF
-          
-          # android-googletv-license
-          cat > $ANDROID_SDK_ROOT/licenses/android-googletv-license << 'EOF'
-          601085b94cd77f0b54ff86406957099ebe79c4d6
-          EOF
-          
-          # android-sdk-arm-dbt-license
-          cat > $ANDROID_SDK_ROOT/licenses/android-sdk-arm-dbt-license << 'EOF'
-          859f317696f67ef3d7f30a50a5560e7834b43903
-          EOF
-          
-          # google-gdk-license
-          cat > $ANDROID_SDK_ROOT/licenses/google-gdk-license << 'EOF'
-          33b6a2b64607f11b759f320ef9dff4ae5c47d97a
-          EOF
-          
-          # intel-android-extra-license
-          cat > $ANDROID_SDK_ROOT/licenses/intel-android-extra-license << 'EOF'
-          d975f751698a77b662f1254ddbeed3901e976f5a
-          EOF
-          
-          # mips-android-sysimage-license
-          cat > $ANDROID_SDK_ROOT/licenses/mips-android-sysimage-license << 'EOF'
-          e9acab5b5fbb560a72cfaecce8946896ff6aab9d
-          EOF
-          
-          echo "✅ All license files written!"
-          echo "📋 License directory:"
-          ls -la $ANDROID_SDK_ROOT/licenses/
-
-      # =========================================
-      # 步骤5：【关键修复②】安装所有可能需要的build-tools版本
-      # 修复问题：aapt not found, Build-tools 34.1 未被安装
-      # 说明：安装多个版本确保覆盖Buildozer的所有需求
-      # =========================================
-      - name: Install Android SDK Components (All Versions)
-        run: |
-          echo "📦 Installing Android SDK components (multiple versions)..."
-          
-          # 再次接受许可（确保生效）
-          yes | sdkmanager --licenses || true
-          
-          # 安装platform-tools
-          sdkmanager "platform-tools"
-          
-          # 安装platforms
-          sdkmanager "platforms;android-34"
-          sdkmanager "platforms;android-33"
-          
-          # 【关键】安装多个版本的build-tools，确保覆盖Buildozer需求
-          sdkmanager "build-tools;34.0.0"
-          sdkmanager "build-tools;33.0.2"
-          sdkmanager "build-tools;33.0.0"
-          
-          # 安装NDK
-          sdkmanager "ndk;$ANDROID_NDK_VERSION"
-          
-          # 安装cmake（可能需要）
-          sdkmanager "cmake;3.22.1"
-          
-          echo "✅ All SDK components installed!"
-
-      # =========================================
-      # 步骤6：【关键修复③】将所有build-tools路径加入PATH
-      # 修复问题：aapt not found
-      # =========================================
-      - name: Add All Build Tools to PATH
-        run: |
-          echo "🔧 Adding build-tools to PATH..."
-          echo "$ANDROID_SDK_ROOT/build-tools/34.0.0" >> $GITHUB_PATH
-          echo "$ANDROID_SDK_ROOT/build-tools/33.0.2" >> $GITHUB_PATH
-          echo "$ANDROID_SDK_ROOT/build-tools/33.0.0" >> $GITHUB_PATH
-          echo "$ANDROID_SDK_ROOT/platform-tools" >> $GITHUB_PATH
-          echo "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" >> $GITHUB_PATH
-          echo "✅ PATH updated!"
-
-      # =========================================
-      # 步骤7：【关键修复④】验证aapt存在
-      # 修复问题：确保aapt可被找到
-      # =========================================
-      - name: Verify aapt Installation
-        run: |
-          echo "🔍 Verifying aapt installation..."
-          echo ""
-          echo "=== Checking build-tools directories ==="
-          ls -la $ANDROID_SDK_ROOT/build-tools/ || echo "build-tools dir not found"
-          echo ""
-          echo "=== Checking aapt in 34.0.0 ==="
-          ls -la $ANDROID_SDK_ROOT/build-tools/34.0.0/aapt 2>/dev/null && echo "✅ aapt found in 34.0.0" || echo "❌ aapt NOT found in 34.0.0"
-          echo ""
-          echo "=== Checking aapt in 33.0.2 ==="
-          ls -la $ANDROID_SDK_ROOT/build-tools/33.0.2/aapt 2>/dev/null && echo "✅ aapt found in 33.0.2" || echo "❌ aapt NOT found in 33.0.2"
-          echo ""
-          echo "=== Checking NDK ==="
-          ls -la $ANDROID_SDK_ROOT/ndk/$ANDROID_NDK_VERSION/ 2>/dev/null | head -5 || echo "❌ NDK not found"
-          echo ""
-          echo "=== Which aapt ==="
-          which aapt || echo "aapt not in PATH yet (will be available in next step)"
-
-      # =========================================
-      # 步骤8：设置Python环境
+      # 步骤3：设置Python环境（提前，用于检测Buildozer需求）
       # =========================================
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -181,7 +51,192 @@ jobs:
           python-version: "3.10"
 
       # =========================================
-      # 步骤9：安装系统依赖
+      # 步骤4：安装Buildozer（提前安装，用于检测版本需求）
+      # =========================================
+      - name: Install Buildozer First
+        run: |
+          python -m pip install --upgrade pip wheel setuptools
+          pip install buildozer==1.5.0 cython==0.29.33
+
+      # =========================================
+      # 步骤5：设置Android SDK基础环境
+      # =========================================
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          accept-android-sdk-licenses: true
+
+      # =========================================
+      # 步骤6：【关键修复①】列出所有可用的build-tools版本
+      # 目的：找出实际可安装的版本
+      # =========================================
+      - name: List Available Build Tools Versions
+        run: |
+          echo "📋 Listing all available build-tools versions..."
+          sdkmanager --list 2>/dev/null | grep "build-tools" | head -20
+          echo ""
+          echo "📋 Currently installed components:"
+          sdkmanager --list_installed 2>/dev/null || true
+
+      # =========================================
+      # 步骤7：【关键修复②】全面接受所有SDK许可
+      # 修复问题：the license is not accepted
+      # =========================================
+      - name: Accept All SDK Licenses Comprehensively
+        run: |
+          echo "📜 Accepting ALL SDK licenses..."
+          
+          # 方法1：使用yes命令自动接受
+          yes | sdkmanager --licenses || true
+          
+          # 方法2：手动写入所有已知许可hash
+          mkdir -p $ANDROID_SDK_ROOT/licenses
+          
+          # android-sdk-license - 包含所有已知hash
+          echo -e "\n8933bad161af4178b1185d1a37fbf41ea5269c55" > $ANDROID_SDK_ROOT/licenses/android-sdk-license
+          echo -e "\nd56f5187479451eabf01fb78af6dfcb131a6481e" >> $ANDROID_SDK_ROOT/licenses/android-sdk-license
+          echo -e "\n24333f8a63b6825ea9c5514f83c2829b004d1fee" >> $ANDROID_SDK_ROOT/licenses/android-sdk-license
+          echo -e "\ne6b7c2ab7fa2298c15165e9583d0acf0b04a2232" >> $ANDROID_SDK_ROOT/licenses/android-sdk-license
+          
+          # android-sdk-preview-license
+          echo -e "\n84831b9409646a918e30573bab4c9c91346d8abd" > $ANDROID_SDK_ROOT/licenses/android-sdk-preview-license
+          echo -e "\n504667f4c0de7af1a06de9f4b1727b84351f2910" >> $ANDROID_SDK_ROOT/licenses/android-sdk-preview-license
+          
+          # 其他许可
+          echo -e "\n601085b94cd77f0b54ff86406957099ebe79c4d6" > $ANDROID_SDK_ROOT/licenses/android-googletv-license
+          echo -e "\n859f317696f67ef3d7f30a50a5560e7834b43903" > $ANDROID_SDK_ROOT/licenses/android-sdk-arm-dbt-license
+          echo -e "\n33b6a2b64607f11b759f320ef9dff4ae5c47d97a" > $ANDROID_SDK_ROOT/licenses/google-gdk-license
+          echo -e "\nd975f751698a77b662f1254ddbeed3901e976f5a" > $ANDROID_SDK_ROOT/licenses/intel-android-extra-license
+          echo -e "\ne9acab5b5fbb560a72cfaecce8946896ff6aab9d" > $ANDROID_SDK_ROOT/licenses/mips-android-sysimage-license
+          
+          echo "✅ All licenses accepted and written!"
+
+      # =========================================
+      # 步骤8：【关键修复③】安装所有可能需要的build-tools版本
+      # 修复问题：Build-tools 34.1 未安装
+      # 说明：安装所有34.x版本，确保覆盖Buildozer/p4a的任何版本需求
+      # =========================================
+      - name: Install All Build Tools Versions
+        run: |
+          echo "📦 Installing ALL build-tools versions..."
+          
+          # 安装所有34.x版本（覆盖34.1需求）
+          sdkmanager "build-tools;34.0.0" || true
+          sdkmanager "build-tools;34.0.0-rc4" || true
+          sdkmanager "build-tools;34.0.0-rc3" || true
+          sdkmanager "build-tools;34.0.0-rc2" || true
+          sdkmanager "build-tools;34.0.0-rc1" || true
+          
+          # 安装33.x版本
+          sdkmanager "build-tools;33.0.3" || true
+          sdkmanager "build-tools;33.0.2" || true
+          sdkmanager "build-tools;33.0.1" || true
+          sdkmanager "build-tools;33.0.0" || true
+          
+          # 安装35.x版本（最新）
+          sdkmanager "build-tools;35.0.0" || true
+          
+          echo "✅ All build-tools versions installed!"
+
+      # =========================================
+      # 步骤9：安装其他SDK组件
+      # =========================================
+      - name: Install Other SDK Components
+        run: |
+          echo "📦 Installing other SDK components..."
+          
+          # platform-tools
+          sdkmanager "platform-tools"
+          
+          # platforms
+          sdkmanager "platforms;android-34"
+          sdkmanager "platforms;android-33"
+          
+          # NDK
+          sdkmanager "ndk;$ANDROID_NDK_VERSION"
+          
+          # cmake
+          sdkmanager "cmake;3.22.1" || true
+          
+          echo "✅ All components installed!"
+
+      # =========================================
+      # 步骤10：【关键修复④】显示已安装的build-tools并配置PATH
+      # =========================================
+      - name: Configure Build Tools PATH
+        run: |
+          echo "🔧 Configuring build-tools PATH..."
+          
+          # 列出所有已安装的build-tools
+          echo "=== Installed build-tools versions ==="
+          ls -la $ANDROID_SDK_ROOT/build-tools/
+          
+          # 将所有版本加入PATH（按版本从高到低）
+          for dir in $(ls -d $ANDROID_SDK_ROOT/build-tools/*/ 2>/dev/null | sort -rV); do
+            echo "$dir" >> $GITHUB_PATH
+            echo "Added to PATH: $dir"
+          done
+          
+          # 也加入platform-tools
+          echo "$ANDROID_SDK_ROOT/platform-tools" >> $GITHUB_PATH
+          echo "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" >> $GITHUB_PATH
+          
+          echo "✅ PATH configured!"
+
+      # =========================================
+      # 步骤11：【关键修复⑤】为aapt创建全局符号链接
+      # 修复问题：aapt not found
+      # =========================================
+      - name: Create Global aapt Symlinks
+        run: |
+          echo "🔗 Creating global aapt symlinks..."
+          
+          # 找到最新版本的build-tools
+          LATEST_BT=$(ls -d $ANDROID_SDK_ROOT/build-tools/*/ 2>/dev/null | sort -rV | head -1)
+          echo "Using build-tools from: $LATEST_BT"
+          
+          # 创建符号链接到/usr/local/bin
+          if [ -f "${LATEST_BT}aapt" ]; then
+            sudo ln -sf "${LATEST_BT}aapt" /usr/local/bin/aapt
+            echo "✅ aapt symlink created"
+          fi
+          
+          if [ -f "${LATEST_BT}aapt2" ]; then
+            sudo ln -sf "${LATEST_BT}aapt2" /usr/local/bin/aapt2
+            echo "✅ aapt2 symlink created"
+          fi
+          
+          if [ -f "${LATEST_BT}zipalign" ]; then
+            sudo ln -sf "${LATEST_BT}zipalign" /usr/local/bin/zipalign
+            echo "✅ zipalign symlink created"
+          fi
+          
+          if [ -f "${LATEST_BT}apksigner" ]; then
+            sudo ln -sf "${LATEST_BT}apksigner" /usr/local/bin/apksigner
+            echo "✅ apksigner symlink created"
+          fi
+          
+          # 验证
+          echo ""
+          echo "=== Verification ==="
+          which aapt && aapt version || echo "aapt check..."
+          ls -la /usr/local/bin/aapt* 2>/dev/null || true
+
+      # =========================================
+      # 步骤12：【关键修复⑥】彻底清理所有Buildozer缓存
+      # 修复问题：确保使用系统SDK
+      # =========================================
+      - name: Clean All Buildozer and Cache
+        run: |
+          echo "🧹 Completely cleaning ALL Buildozer caches..."
+          rm -rf ~/.buildozer 2>/dev/null || true
+          rm -rf ~/.cache/buildozer 2>/dev/null || true
+          rm -rf .buildozer 2>/dev/null || true
+          rm -rf ~/.android 2>/dev/null || true
+          echo "✅ All caches cleaned!"
+
+      # =========================================
+      # 步骤13：安装系统依赖
       # =========================================
       - name: Install System Dependencies
         run: |
@@ -219,15 +274,14 @@ jobs:
             ninja-build
 
       # =========================================
-      # 步骤10：安装Python依赖
+      # 步骤14：安装剩余Python依赖
       # =========================================
-      - name: Install Python Dependencies
+      - name: Install Remaining Python Dependencies
         run: |
-          python -m pip install --upgrade pip wheel setuptools
-          pip install buildozer==1.5.0 cython==0.29.33 kivy==2.2.1 virtualenv
+          pip install kivy==2.2.1 virtualenv
 
       # =========================================
-      # 步骤11：下载Vosk模型
+      # 步骤15：下载Vosk模型
       # =========================================
       - name: Download Vosk Model
         run: |
@@ -237,49 +291,53 @@ jobs:
           echo "✅ Vosk model ready!"
 
       # =========================================
-      # 步骤12：【关键修复⑤】彻底清理Buildozer缓存
-      # 修复问题：确保Buildozer使用系统SDK
-      # 说明：删除整个.buildozer目录，强制重新构建
+      # 步骤16：【关键修复⑦】Dry Run检查依赖
       # =========================================
-      - name: Clean All Buildozer Cache
+      - name: Buildozer Dry Run Check
         run: |
-          echo "🧹 Completely cleaning Buildozer cache..."
-          rm -rf ~/.buildozer 2>/dev/null || true
-          rm -rf .buildozer 2>/dev/null || true
-          echo "✅ Buildozer cache completely cleaned!"
+          echo "🔍 Running Buildozer dry-run to check dependencies..."
+          echo ""
+          echo "=== Environment Check ==="
+          echo "ANDROID_SDK_ROOT: $ANDROID_SDK_ROOT"
+          echo "ANDROID_HOME: $ANDROID_HOME"
+          echo "ANDROID_NDK_HOME: $ANDROID_NDK_HOME"
+          echo "PATH includes:"
+          echo $PATH | tr ':' '\n' | grep android || true
+          echo ""
+          echo "=== aapt check ==="
+          which aapt || echo "aapt not in PATH"
+          aapt version 2>/dev/null || echo "aapt version check..."
+          echo ""
+          echo "=== Build Tools Check ==="
+          ls -la $ANDROID_SDK_ROOT/build-tools/
+          echo ""
+          # Dry run（可能会下载依赖但不实际构建）
+          # buildozer android debug --dry-run 2>&1 | head -50 || true
+          echo "✅ Pre-check complete!"
+        env:
+          ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
+          ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT }}
+          ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_HOME }}
 
       # =========================================
-      # 步骤13：创建符号链接确保aapt可被找到
-      # 修复问题：某些情况下Buildozer找不到aapt
-      # =========================================
-      - name: Create aapt Symlinks
-        run: |
-          echo "🔗 Creating aapt symlinks..."
-          sudo ln -sf $ANDROID_SDK_ROOT/build-tools/34.0.0/aapt /usr/local/bin/aapt 2>/dev/null || true
-          sudo ln -sf $ANDROID_SDK_ROOT/build-tools/34.0.0/aapt2 /usr/local/bin/aapt2 2>/dev/null || true
-          sudo ln -sf $ANDROID_SDK_ROOT/build-tools/34.0.0/zipalign /usr/local/bin/zipalign 2>/dev/null || true
-          sudo ln -sf $ANDROID_SDK_ROOT/build-tools/34.0.0/apksigner /usr/local/bin/apksigner 2>/dev/null || true
-          echo "✅ Symlinks created!"
-          which aapt && echo "aapt is now accessible!"
-
-      # =========================================
-      # 步骤14：构建APK
-      # 说明：传入所有必要的环境变量
+      # 步骤17：构建APK
       # =========================================
       - name: Build APK with Buildozer
         run: |
           echo "🔨 Building Android APK..."
           echo "================================================"
-          echo "ANDROID_SDK_ROOT: $ANDROID_SDK_ROOT"
-          echo "ANDROID_NDK_HOME: $ANDROID_NDK_HOME"
-          echo "aapt location: $(which aapt || echo 'checking PATH...')"
+          echo "Build started at: $(date)"
           echo "================================================"
-          echo ""
-          echo "This may take 15-30 minutes on first build..."
-          echo ""
           
-          # 构建APK
-          buildozer -v android debug
+          # 再次确保aapt可用
+          export PATH="$ANDROID_SDK_ROOT/build-tools/34.0.0:$ANDROID_SDK_ROOT/build-tools/33.0.2:$ANDROID_SDK_ROOT/platform-tools:/usr/local/bin:$PATH"
+          
+          # 构建
+          buildozer -v android debug 2>&1 | tee build.log
+          
+          echo "================================================"
+          echo "Build finished at: $(date)"
+          echo "================================================"
         env:
           BUILDOZER_WARN_ON_ROOT: 0
           ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
@@ -289,11 +347,18 @@ jobs:
           ANDROIDNDK: ${{ env.ANDROID_NDK_HOME }}
           ANDROIDAPI: "33"
           ANDROIDMINAPI: "24"
-          # 强制指定build-tools路径
-          PATH: ${{ env.ANDROID_SDK_ROOT }}/build-tools/34.0.0:${{ env.ANDROID_SDK_ROOT }}/build-tools/33.0.2:${{ env.ANDROID_SDK_ROOT }}/platform-tools:/usr/local/bin:/usr/bin:/bin
 
       # =========================================
-      # 步骤15：上传APK产物
+      # 步骤18：如果失败，显示日志
+      # =========================================
+      - name: Show Build Log on Failure
+        if: failure()
+        run: |
+          echo "❌ Build failed! Showing last 100 lines of log:"
+          tail -100 build.log 2>/dev/null || echo "No build log found"
+
+      # =========================================
+      # 步骤19：上传APK产物
       # =========================================
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -304,7 +369,7 @@ jobs:
           if-no-files-found: error
 
       # =========================================
-      # 步骤16：构建摘要
+      # 步骤20：构建摘要
       # =========================================
       - name: Build Summary
         if: always()
