@@ -45,6 +45,9 @@ jobs:
           echo ""
           echo "📄 main.py exists:"
           ls -la main.py || echo "main.py NOT FOUND!"
+          echo ""
+          echo "📋 Key buildozer.spec settings:"
+          grep -E "source.include|requirements|android.ndk" buildozer.spec || true
 
       # =========================================
       # 步骤3：设置JDK 17
@@ -204,8 +207,8 @@ jobs:
           pip list | grep -E "buildozer|cython|kivy"
 
       # =========================================
-      # 步骤11：下载Vosk模型
-      # 【关键】确保模型在正确位置
+      # 步骤11：下载并配置Vosk模型
+      # 【关键修复】确保模型在项目根目录，与main.py同级
       # =========================================
       - name: Download and Setup Vosk Model
         run: |
@@ -215,12 +218,18 @@ jobs:
           wget -q https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip
           unzip -q vosk-model-small-en-us-0.15.zip
           
-          # 验证模型存在
+          # 验证模型存在且在正确位置（项目根目录）
+          echo ""
+          echo "📁 Project root contents:"
+          ls -la
           echo ""
           echo "📁 Vosk model structure:"
-          ls -la vosk-model-small-en-us-0.15/ || echo "Model directory NOT FOUND!"
+          ls -la vosk-model-small-en-us-0.15/ | head -20
+          echo ""
+          echo "📁 Vosk model files count:"
+          find vosk-model-small-en-us-0.15 -type f | wc -l
           
-          echo "✅ Vosk model ready!"
+          echo "✅ Vosk model ready in project root!"
 
       # =========================================
       # 步骤12：彻底清理Buildozer缓存
