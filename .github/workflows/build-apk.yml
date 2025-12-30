@@ -1,202 +1,95 @@
-# =============================================================================
-# GitHub Actions - Android APK Build (v7.0 推倒重来版)
-# =============================================================================
-# 逻辑：环境探测 → 版本固化 → 预验证 → 构建 → 上传日志
-# 设计原则：先摸清环境再写代码，所有版本硬编码，预验证通过才构建
-# =============================================================================
 name: Build Android APK
-
-on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
-  workflow_dispatch:
-
-env:
-  # ===== 版本硬编码（杜绝自动更新）=====
-  PYTHON_VERSION: "3.10"
-  JDK_VERSION: "11"
-  ANDROID_API: "33"
-  BUILD_TOOLS: "33.0.2"
-  NDK_VERSION: "25.2.9519653"
-  ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
-
+on: [push]
 jobs:
   build:
     runs-on: ubuntu-22.04
-    # 固化Ubuntu版本为22.04，避免24.04的兼容性问题
-
     steps:
-      # ===========================================
-      # 步骤1：环境探测（了解GitHub Actions当前环境）
-      # ===========================================
-      - name: "1️⃣ 环境探测"
+      # 步骤0：第一步就创建日志文件，写入环境基础信息（测试环境的核心）
+      - name: 0. 强制创建日志+探测环境
         run: |
-          echo "===== 系统信息 ====="
-          lsb_release -a || cat /etc/os-release
-          echo ""
-          echo "===== 预装Java版本 ====="
-          java -version 2>&1 || echo "Java未预装"
-          echo ""
-          echo "===== 预装Python版本 ====="
-          python3 --version || echo "Python3未预装"
-          echo ""
-          echo "===== 预装SDK路径 ====="
-          echo "ANDROID_SDK_ROOT: $ANDROID_SDK_ROOT"
-          ls -la $ANDROID_SDK_ROOT 2>/dev/null || echo "SDK目录不存在"
-          echo ""
-          echo "===== 预装build-tools ====="
-          ls $ANDROID_SDK_ROOT/build-tools/ 2>/dev/null || echo "无预装build-tools"
-          echo ""
-          echo "===== 环境探测完成 ====="
+          # 先创建日志文件，确保绝对存在
+          touch buildozer-final.log
+          # 写入构建开始时间
+          echo "===== 构建开始：$(date) =====" >> buildozer-final.log
+          # 探测系统环境（测试GitHub环境的核心内容）
+          echo "===== 1. 系统版本信息 =====" >> buildozer-final.log
+          lsb_release -a >> buildozer-final.log 2>&1
+          echo "===== 2. Python版本 =====" >> buildozer-final.log
+          python --version >> buildozer-final.log 2>&1
+          python3 --version >> buildozer-final.log 2>&1
+          echo "===== 3. JDK版本 =====" >> buildozer-final.log
+          java -version >> buildozer-final.log 2>&1
+          echo "===== 4. 预装Android SDK信息 =====" >> buildozer-final.log
+          ls -la /usr/local/lib/android/sdk/ >> buildozer-final.log 2>&1
 
-      # ===========================================
-      # 步骤2：版本固化（强制使用指定版本）
-      # ===========================================
-      - name: "2️⃣ 拉取代码"
-        uses: actions/checkout@v4
+      # 步骤1：拉取代码，日志追加
+      - name: 1. 拉取代码
+        run: |
+          echo "===== 拉取代码开始 =====" >> buildozer-final.log
+          git pull origin main >> buildozer-final.log 2>&1 || echo "拉取代码失败（首次拉取无影响）" >> buildozer-final.log
+          echo "===== 拉取代码结束 =====" >> buildozer-final.log
 
-      - name: "2️⃣ 固化Python版本"
+      # 步骤2：固化Python+JDK版本，日志追加
+      - name: 2. 安装Python 3.10 + JDK 11
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: "2️⃣ 固化JDK版本（JDK11解决JAXB问题）"
-        uses: actions/setup-java@v4
+          python-version: "3.10.14"
+      - uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
-          java-version: ${{ env.JDK_VERSION }}
-
-      - name: "2️⃣ 固化Android SDK"
-        uses: android-actions/setup-android@v3
-        with:
-          accept-android-sdk-licenses: true
-
-      - name: "2️⃣ 固化SDK组件版本"
+          distribution: "temurin"
+          java-version: "11.0.22"
+      - name: 记录Python/JDK安装结果
         run: |
-          echo "===== 删除旧版tools（解决JAXB兼容问题）====="
-          rm -rf $ANDROID_SDK_ROOT/tools
-          
-          echo "===== 接受所有许可 ====="
-          yes | sdkmanager --licenses || true
-          
-          echo "===== 安装固定版本组件 ====="
-          sdkmanager "platform-tools"
-          sdkmanager "platforms;android-${{ env.ANDROID_API }}"
-          sdkmanager "build-tools;${{ env.BUILD_TOOLS }}"
-          sdkmanager "ndk;${{ env.NDK_VERSION }}"
-          
-          echo "===== 写入许可文件 ====="
-          mkdir -p $ANDROID_SDK_ROOT/licenses
-          echo -e "\n8933bad161af4178b1185d1a37fbf41ea5269c55\nd56f5187479451eabf01fb78af6dfcb131a6481e" > $ANDROID_SDK_ROOT/licenses/android-sdk-license
+          echo "===== Python/JDK安装结果 =====" >> buildozer-final.log
+          python --version >> buildozer-final.log 2>&1
+          java -version >> buildozer-final.log 2>&1
 
-      - name: "2️⃣ 安装系统依赖"
+      # 步骤3：安装系统依赖，日志追加
+      - name: 3. 安装系统依赖（解决SSL/JAXB）
         run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential git zip unzip python3-dev libssl-dev \
-            libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev libportmidi-dev \
-            libswscale-dev libavformat-dev libavcodec-dev zlib1g-dev libffi-dev \
-            libgstreamer1.0-dev gstreamer1.0-plugins-base libgstreamer-plugins-base1.0-dev \
-            autoconf automake libtool cmake ccache lld wget
+          echo "===== 安装系统依赖开始 =====" >> buildozer-final.log
+          sudo apt update >> buildozer-final.log 2>&1
+          sudo apt install -y python3-dev libssl-dev libjaxb-java >> buildozer-final.log 2>&1
+          echo "===== 安装系统依赖结束 =====" >> buildozer-final.log
 
-      - name: "2️⃣ 安装Python依赖（固定版本）"
+      # 步骤4：安装Python依赖（固化版本），日志追加
+      - name: 4. 安装Python依赖
         run: |
-          pip install --upgrade pip wheel setuptools
-          pip install buildozer==1.5.0 cython==0.29.33 kivy==2.2.1
+          echo "===== 安装Python依赖开始 =====" >> buildozer-final.log
+          pip install --upgrade pip >> buildozer-final.log 2>&1
+          pip install buildozer==1.5.0 cython==0.29.33 kivy==2.2.1 >> buildozer-final.log 2>&1
+          echo "===== 安装Python依赖结束 =====" >> buildozer-final.log
 
-      - name: "2️⃣ 下载Vosk模型"
+      # 步骤5：安装SDK组件（固化版本），日志追加
+      - name: 5. 安装SDK组件（33.0.2）
         run: |
-          wget -q --timeout=120 https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip
-          unzip -q vosk-model-small-en-us-0.15.zip
+          echo "===== 安装SDK组件开始 =====" >> buildozer-final.log
+          yes | sdkmanager --licenses >> buildozer-final.log 2>&1
+          sdkmanager "platforms;android-33" "build-tools;33.0.2" "ndk;25.2.9519653" >> buildozer-final.log 2>&1
+          echo "===== 安装SDK组件结束 =====" >> buildozer-final.log
 
-      # ===========================================
-      # 步骤3：预验证（确保环境正确再构建）
-      # ===========================================
-      - name: "3️⃣ 预验证环境"
+      # 步骤6：清理缓存+创建链接，日志追加
+      - name: 6. 清理缓存+创建SDK链接
         run: |
-          echo "===== 预验证开始 ====="
-          FAIL=0
-          
-          echo -n "检查Python版本... "
-          python --version | grep -q "3.10" && echo "✅ Python 3.10" || { echo "❌ Python版本不对"; FAIL=1; }
-          
-          echo -n "检查JDK版本... "
-          java -version 2>&1 | grep -q "11" && echo "✅ JDK 11" || { echo "❌ JDK版本不对"; FAIL=1; }
-          
-          echo -n "检查SSL模块... "
-          python -c "import ssl; print('✅ SSL模块可用')" || { echo "❌ SSL模块不可用"; FAIL=1; }
-          
-          echo -n "检查build-tools... "
-          ls $ANDROID_SDK_ROOT/build-tools/${{ env.BUILD_TOOLS }}/aapt >/dev/null 2>&1 && echo "✅ build-tools ${{ env.BUILD_TOOLS }}" || { echo "❌ build-tools缺失"; FAIL=1; }
-          
-          echo -n "检查NDK... "
-          ls $ANDROID_SDK_ROOT/ndk/${{ env.NDK_VERSION }} >/dev/null 2>&1 && echo "✅ NDK ${{ env.NDK_VERSION }}" || { echo "❌ NDK缺失"; FAIL=1; }
-          
-          echo -n "检查Vosk模型... "
-          ls vosk-model-small-en-us-0.15 >/dev/null 2>&1 && echo "✅ Vosk模型存在" || { echo "❌ Vosk模型缺失"; FAIL=1; }
-          
-          echo ""
-          if [ $FAIL -eq 0 ]; then
-            echo "===== ✅ 预验证全部通过 ====="
-          else
-            echo "===== ❌ 预验证失败，请检查上述错误 ====="
-            exit 1
-          fi
+          echo "===== 清理缓存开始 =====" >> buildozer-final.log
+          rm -rf ~/.buildozer >> buildozer-final.log 2>&1
+          ln -s /usr/local/lib/android/sdk ~/.buildozer/android/platform/android-sdk >> buildozer-final.log 2>&1
+          echo "===== 清理缓存结束 =====" >> buildozer-final.log
 
-      # ===========================================
-      # 步骤4：构建APK
-      # ===========================================
-      - name: "4️⃣ 配置Buildozer SDK"
+      # 步骤7：构建APK，日志追加（失败也写）
+      - name: 7. 构建APK
         run: |
-          rm -rf ~/.buildozer .buildozer
-          mkdir -p ~/.buildozer/android/platform
-          ln -sf $ANDROID_SDK_ROOT ~/.buildozer/android/platform/android-sdk
+          echo "===== 构建APK开始 =====" >> buildozer-final.log
+          buildozer android debug --verbose >> buildozer-final.log 2>&1
+          # 记录错误码，哪怕失败也写
+          echo "构建错误码：$?" >> buildozer-final.log
+          echo "===== 构建APK结束 =====" >> buildozer-final.log
 
-      - name: "4️⃣ 构建APK"
-        id: build
-        run: |
-          export PATH="$ANDROID_SDK_ROOT/build-tools/${{ env.BUILD_TOOLS }}:$ANDROID_SDK_ROOT/platform-tools:$PATH"
-          buildozer android debug --verbose 2>&1 | tee buildozer-final.log || true
-          
-          if ls bin/*.apk 1>/dev/null 2>&1; then
-            echo "apk_exists=true" >> $GITHUB_OUTPUT
-            echo "===== ✅ APK生成成功 ====="
-            ls -lh bin/*.apk
-          else
-            echo "apk_exists=false" >> $GITHUB_OUTPUT
-            echo "===== ❌ APK未生成 ====="
-          fi
-        env:
-          BUILDOZER_WARN_ON_ROOT: 0
-
-      # ===========================================
-      # 步骤5：上传日志和APK
-      # ===========================================
-      - name: "5️⃣ 上传构建日志"
-        if: always()
+      # 步骤8：强制上传日志（绝对不能漏）
+      - name: 8. 强制上传日志（必传）
         uses: actions/upload-artifact@v4
         with:
           name: build-log
           path: buildozer-final.log
+          # 哪怕文件空也上传，确保能拿到
           if-no-files-found: warn
-
-      - name: "5️⃣ 上传APK"
-        if: steps.build.outputs.apk_exists == 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: teleprompter-apk
-          path: bin/*.apk
-
-      - name: "5️⃣ 构建结果"
-        if: always()
-        run: |
-          if [ "${{ steps.build.outputs.apk_exists }}" == "true" ]; then
-            echo "🎉 构建成功！APK已上传到Artifacts"
-          else
-            echo "❌ 构建失败，请下载build-log查看详细错误"
-            echo ""
-            echo "===== 错误摘要（最后30行）====="
-            tail -30 buildozer-final.log 2>/dev/null || echo "日志不存在"
-            exit 1
-          fi
