@@ -1,10 +1,9 @@
 # =============================================================================
-# GitHub Actions workflow for building Android APK with Buildozer
+# GitHub Actions - Android APK Build (极简版 v5.0)
 # =============================================================================
-# 【重要声明】本配置文件仅属于「teleprompter」仓库
-# 
-# 【v4.0 - 调试优先版】
-# 核心目标：输出详细日志，定位Build APK步骤失败的真正原因
+# 步骤数：10步（极简流程）
+# 验证方式：buildozer android printconf（Buildozer自带命令）
+# 日志捕获：buildozer_final.log（100%可靠）
 # =============================================================================
 name: Build Android APK
 
@@ -22,518 +21,141 @@ jobs:
       ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
       ANDROID_HOME: /usr/local/lib/android/sdk
       ANDROID_NDK_VERSION: 25.2.9519653
-      ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/25.2.9519653
 
     steps:
-      # =========================================
+      # ===========================================
       # 步骤1：拉取代码
-      # =========================================
+      # ===========================================
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # =========================================
-      # 步骤2：显示项目结构（调试）
-      # 目的：确认代码和文件是否正确拉取
-      # =========================================
-      - name: Show Project Structure
-        run: |
-          echo "📁 Project structure:"
-          ls -la
-          echo ""
-          echo "📄 buildozer.spec content:"
-          cat buildozer.spec
-          echo ""
-          echo "📄 main.py exists:"
-          ls -la main.py || echo "main.py NOT FOUND!"
-          echo ""
-          echo "📋 Key buildozer.spec settings:"
-          grep -E "source.include|requirements|android.ndk" buildozer.spec || true
-
-      # =========================================
-      # 步骤3：设置JDK 17
-      # =========================================
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
+      # ===========================================
+      # 步骤2：设置Python + Java
+      # ===========================================
+      - name: Setup Python and Java
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      # =========================================
-      # 步骤4：设置Python环境
-      # =========================================
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.10"
-
-      # =========================================
-      # 步骤5：设置Android SDK
-      # =========================================
-      - name: Set up Android SDK
+      # ===========================================
+      # 步骤3：设置Android SDK + 安装组件
+      # ===========================================
+      - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
           accept-android-sdk-licenses: true
 
-      # =========================================
-      # 步骤6：全面接受SDK许可
-      # =========================================
-      - name: Accept All SDK Licenses
-        run: |
-          echo "📜 Accepting all SDK licenses..."
-          yes | sdkmanager --licenses || true
-          
-          mkdir -p $ANDROID_SDK_ROOT/licenses
-          echo -e "\n8933bad161af4178b1185d1a37fbf41ea5269c55" > $ANDROID_SDK_ROOT/licenses/android-sdk-license
-          echo -e "\nd56f5187479451eabf01fb78af6dfcb131a6481e" >> $ANDROID_SDK_ROOT/licenses/android-sdk-license
-          echo -e "\n24333f8a63b6825ea9c5514f83c2829b004d1fee" >> $ANDROID_SDK_ROOT/licenses/android-sdk-license
-          echo -e "\n84831b9409646a918e30573bab4c9c91346d8abd" > $ANDROID_SDK_ROOT/licenses/android-sdk-preview-license
-          
-          echo "✅ Licenses accepted!"
-
-      # =========================================
-      # 步骤7：安装SDK组件
-      # 【修复v3】版本必须与buildozer.spec完全一致！
-      # buildozer.spec配置：android.api = 33, android.build_tools = 33.0.2
-      # =========================================
       - name: Install SDK Components
         run: |
-          echo "📦 Installing SDK components..."
-          echo ""
-          echo "【关键】版本必须与buildozer.spec一致："
-          echo "  - android.api = 33 → 需要 platforms;android-33"
-          echo "  - android.build_tools = 33.0.2 → 需要 build-tools;33.0.2"
-          echo ""
-          
-          # 再次接受所有许可
           yes | sdkmanager --licenses || true
-          
-          # 安装platform-tools
-          sdkmanager "platform-tools"
-          
-          # 【关键】安装platforms;android-33（必须与android.api = 33一致）
-          echo "📦 Installing platforms..."
-          sdkmanager "platforms;android-33"
-          echo "✓ platforms;android-33 installed"
-          
-          # 【关键】安装build-tools;33.0.2（必须与android.build_tools = 33.0.2一致）
-          echo "📦 Installing build-tools..."
-          sdkmanager "build-tools;33.0.2"
-          echo "✓ build-tools;33.0.2 installed"
-          
-          # 备用版本（以防python-for-android请求其他版本）
-          sdkmanager "build-tools;34.0.0" || true
-          sdkmanager "build-tools;35.0.0" || true
-          
-          # 安装NDK
-          sdkmanager "ndk;$ANDROID_NDK_VERSION"
-          
-          echo ""
-          echo "✅ SDK components installation complete!"
-          echo ""
-          echo "📋 Installed platforms versions:"
-          ls -la $ANDROID_SDK_ROOT/platforms/
-          echo ""
-          echo "📋 Installed build-tools versions:"
-          ls -la $ANDROID_SDK_ROOT/build-tools/
-          echo ""
-          echo "📋 Build-tools 33.0.2 contents:"
-          ls -la $ANDROID_SDK_ROOT/build-tools/33.0.2/ | head -10
+          sdkmanager "platform-tools" "platforms;android-33" "build-tools;33.0.2" "ndk;$ANDROID_NDK_VERSION"
+          mkdir -p $ANDROID_SDK_ROOT/licenses
+          echo -e "\n8933bad161af4178b1185d1a37fbf41ea5269c55\nd56f5187479451eabf01fb78af6dfcb131a6481e\n24333f8a63b6825ea9c5514f83c2829b004d1fee" > $ANDROID_SDK_ROOT/licenses/android-sdk-license
 
-      # =========================================
-      # 步骤8：配置环境变量和PATH
-      # 【修复】使用33.0.2版本（与buildozer.spec一致）
-      # =========================================
-      - name: Configure Environment
-        run: |
-          echo "🔧 Configuring environment..."
-          
-          # 添加build-tools 33.0.2到PATH（优先级最高）
-          echo "$ANDROID_SDK_ROOT/build-tools/33.0.2" >> $GITHUB_PATH
-          echo "$ANDROID_SDK_ROOT/platform-tools" >> $GITHUB_PATH
-          
-          # 创建符号链接（使用33.0.2版本）
-          sudo ln -sf $ANDROID_SDK_ROOT/build-tools/33.0.2/aapt /usr/local/bin/aapt
-          sudo ln -sf $ANDROID_SDK_ROOT/build-tools/33.0.2/aapt2 /usr/local/bin/aapt2
-          sudo ln -sf $ANDROID_SDK_ROOT/build-tools/33.0.2/aidl /usr/local/bin/aidl
-          
-          echo "✅ Environment configured!"
-          echo ""
-          echo "📋 Symlinks created:"
-          ls -la /usr/local/bin/aapt /usr/local/bin/aapt2 /usr/local/bin/aidl 2>/dev/null || true
-
-      # =========================================
-      # 步骤9：安装系统依赖
-      # 【关键】确保所有Kivy编译依赖都安装
-      # 【修复】移除Ubuntu 22.04+不可用的包：
-      #   - libtinfo5 → 已被libtinfo6替代，不需要单独安装
-      #   - libncurses5-dev → 使用libncurses-dev替代
-      # =========================================
+      # ===========================================
+      # 步骤4：安装系统依赖
+      # ===========================================
       - name: Install System Dependencies
         run: |
-          echo "📦 Installing system dependencies..."
-          echo "System info: $(lsb_release -a 2>/dev/null || cat /etc/os-release)"
-          echo ""
-          
-          # 更新包列表
           sudo apt-get update
-          
-          # 安装核心依赖（已验证在Ubuntu 22.04/24.04可用）
-          sudo apt-get install -y \
-            build-essential \
-            git \
-            zip \
-            unzip \
-            python3-pip \
-            python3-dev \
-            ffmpeg \
-            libsdl2-dev \
-            libsdl2-image-dev \
-            libsdl2-mixer-dev \
-            libsdl2-ttf-dev \
-            libportmidi-dev \
-            libswscale-dev \
-            libavformat-dev \
-            libavcodec-dev \
-            libavdevice-dev \
-            zlib1g-dev \
-            libgstreamer1.0-dev \
-            gstreamer1.0-plugins-base \
-            gstreamer1.0-plugins-good \
-            libgstreamer-plugins-base1.0-dev \
-            libffi-dev \
-            libssl-dev \
-            autoconf \
-            automake \
-            libtool \
-            pkg-config \
-            wget \
-            lld \
-            ccache \
-            cmake \
-            ninja-build \
-            libltdl-dev \
-            libncurses-dev \
-            libncursesw5-dev \
-            patch \
-            ant \
-            openjdk-17-jdk
-          
-          echo ""
-          echo "✅ System dependencies installed!"
-          
-          # 验证关键依赖
-          echo ""
-          echo "📋 Verifying installed packages:"
-          dpkg -l | grep -E "libsdl2|libncurses|autoconf" | head -10 || true
+          sudo apt-get install -y build-essential git zip unzip python3-pip python3-dev \
+            libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev \
+            libportmidi-dev libswscale-dev libavformat-dev libavcodec-dev zlib1g-dev \
+            libgstreamer1.0-dev gstreamer1.0-plugins-base libgstreamer-plugins-base1.0-dev \
+            libffi-dev libssl-dev autoconf automake libtool cmake ccache lld wget
 
-      # =========================================
-      # 步骤10：安装Python依赖
-      # =========================================
+      # ===========================================
+      # 步骤5：安装Python依赖
+      # ===========================================
       - name: Install Python Dependencies
         run: |
-          echo "📦 Installing Python dependencies..."
-          python -m pip install --upgrade pip wheel setuptools
-          pip install buildozer==1.5.0
-          pip install cython==0.29.33
-          pip install kivy==2.2.1
-          pip install virtualenv
-          
-          echo ""
-          echo "📋 Installed Python packages:"
-          pip list | grep -E "buildozer|cython|kivy"
+          pip install --upgrade pip wheel setuptools
+          pip install buildozer==1.5.0 cython==0.29.33 kivy==2.2.1
 
-      # =========================================
-      # 步骤11：下载并配置Vosk模型
-      # 【关键修复】确保模型在项目根目录，与main.py同级
-      # =========================================
-      - name: Download and Setup Vosk Model
+      # ===========================================
+      # 步骤6：下载Vosk模型
+      # ===========================================
+      - name: Download Vosk Model
         run: |
-          echo "📥 Downloading Vosk model..."
-          
-          # 下载模型
           wget -q https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip
           unzip -q vosk-model-small-en-us-0.15.zip
-          
-          # 验证模型存在且在正确位置（项目根目录）
-          echo ""
-          echo "📁 Project root contents:"
-          ls -la
-          echo ""
-          echo "📁 Vosk model structure:"
-          ls -la vosk-model-small-en-us-0.15/ | head -20
-          echo ""
-          echo "📁 Vosk model files count:"
-          find vosk-model-small-en-us-0.15 -type f | wc -l
-          
-          echo "✅ Vosk model ready in project root!"
 
-      # =========================================
-      # 步骤12：预配置Buildozer的SDK目录
-      # 【修复v2】创建完整的目录结构并确保Buildozer能找到所有工具
-      # =========================================
-      - name: Setup Buildozer SDK Directory
+      # ===========================================
+      # 步骤7：配置Buildozer SDK目录（符号链接）
+      # ===========================================
+      - name: Setup Buildozer SDK
         run: |
-          echo "🔧 Setting up Buildozer SDK directory..."
-          
-          # 【重要】彻底清理所有Buildozer缓存，避免使用旧配置
-          rm -rf ~/.buildozer 2>/dev/null || true
-          rm -rf .buildozer 2>/dev/null || true
-          rm -rf ~/.android 2>/dev/null || true
-          
-          # 创建Buildozer期望的完整目录结构
+          rm -rf ~/.buildozer .buildozer
           mkdir -p ~/.buildozer/android/platform
-          
-          # 【关键】创建符号链接，让Buildozer使用系统SDK
           ln -sf $ANDROID_SDK_ROOT ~/.buildozer/android/platform/android-sdk
-          
-          # 同时创建NDK符号链接
-          mkdir -p ~/.buildozer/android/platform/android-ndk
-          ln -sf $ANDROID_NDK_HOME ~/.buildozer/android/platform/android-ndk-r25c || true
-          
-          # 验证符号链接是否正确
-          echo ""
-          echo "📁 Buildozer SDK directory structure:"
-          ls -la ~/.buildozer/android/platform/
-          echo ""
-          echo "📁 Linked SDK contents:"
-          ls -la ~/.buildozer/android/platform/android-sdk/ | head -10
-          echo ""
-          echo "📁 Linked SDK build-tools:"
-          ls -la ~/.buildozer/android/platform/android-sdk/build-tools/
-          echo ""
-          
-          # 【验证】确保aapt和aidl存在
-          LATEST_BT=$(ls -d $ANDROID_SDK_ROOT/build-tools/* 2>/dev/null | sort -V | tail -1)
-          echo "📋 Latest build-tools: $LATEST_BT"
-          echo "📋 aapt location: $(ls $LATEST_BT/aapt 2>/dev/null || echo 'NOT FOUND')"
-          echo "📋 aidl location: $(ls $LATEST_BT/aidl 2>/dev/null || echo 'NOT FOUND')"
-          
-          echo "✅ Buildozer SDK directory configured!"
+          ln -sf $ANDROID_SDK_ROOT/build-tools/33.0.2/aapt /usr/local/bin/aapt 2>/dev/null || sudo ln -sf $ANDROID_SDK_ROOT/build-tools/33.0.2/aapt /usr/local/bin/aapt
 
-      # =========================================
-      # 步骤13：验证构建环境（详细版）
-      # =========================================
-      - name: Verify Build Environment
+      # ===========================================
+      # 步骤8：打印Buildozer实际配置（用自带命令）
+      # ===========================================
+      - name: Print Buildozer Config
         run: |
-          echo "🔍 Verifying build environment..."
+          echo "=== Buildozer实际读取的配置 ==="
+          buildozer android printconf || echo "printconf not available, showing spec:"
           echo ""
-          echo "=== Java Version ==="
-          java -version
-          echo ""
-          echo "=== Python Version ==="
-          python --version
-          echo ""
-          echo "=== Buildozer Version ==="
-          buildozer --version
-          pip show buildozer | grep -E "Name|Version"
-          echo ""
-          echo "=== Android SDK ==="
-          echo "ANDROID_SDK_ROOT: $ANDROID_SDK_ROOT"
-          echo "ANDROID_HOME: $ANDROID_HOME"
-          echo "ANDROID_NDK_HOME: $ANDROID_NDK_HOME"
-          echo ""
-          echo "=== Build-tools versions installed ==="
-          ls -la $ANDROID_SDK_ROOT/build-tools/
-          echo ""
-          echo "=== 检查build-tools 33.0.2的关键工具 ==="
-          BT_DIR="$ANDROID_SDK_ROOT/build-tools/33.0.2"
-          echo "--- 33.0.2 ---"
-          ls $BT_DIR/aapt 2>/dev/null && echo "  ✓ aapt exists" || echo "  ✗ aapt missing"
-          ls $BT_DIR/aapt2 2>/dev/null && echo "  ✓ aapt2 exists" || echo "  ✗ aapt2 missing"
-          ls $BT_DIR/aidl 2>/dev/null && echo "  ✓ aidl exists" || echo "  ✗ aidl missing"
-          ls $BT_DIR/dx 2>/dev/null && echo "  ✓ dx exists" || echo "  ✗ dx missing (可能用d8替代)"
-          ls $BT_DIR/d8 2>/dev/null && echo "  ✓ d8 exists" || echo "  ✗ d8 missing"
-          echo ""
-          echo "=== Buildozer符号链接验证 ==="
-          ls -la ~/.buildozer/android/platform/ 2>/dev/null || echo "Buildozer platform dir not found"
-          ls -la ~/.buildozer/android/platform/android-sdk/build-tools/ 2>/dev/null || echo "Linked build-tools not found"
-          echo ""
-          echo "=== buildozer.spec关键配置（原始文件） ==="
-          echo "【这些配置必须被Buildozer正确读取】"
-          grep -E "^android\.(api|build_tools|ndk|sdk_path|ndk_path)" buildozer.spec || true
-          grep -E "^requirements" buildozer.spec || true
-          echo ""
-          echo "=== Project Files ==="
-          ls -la
-          echo ""
-          echo "=== Vosk Model Check ==="
-          ls -la vosk-model-small-en-us-0.15/ 2>/dev/null | head -5 || echo "Vosk model directory not found!"
-          echo ""
-          echo "✅ Environment verification complete!"
+          echo "=== buildozer.spec关键配置 ==="
+          grep -E "^(android\.|requirements)" buildozer.spec | head -20
 
-      # =========================================
-      # 步骤13.5：【关键】验证Buildozer配置是否被正确读取
-      # 【修复】使用纯bash命令，避免heredoc导致的YAML语法错误
-      # =========================================
-      - name: Verify Buildozer Config Reading
-        run: |
-          echo "🔍 Verifying Buildozer reads config correctly..."
-          echo ""
-          echo "【重要】以下配置必须在[app] section中且格式正确"
-          echo ""
-          echo "=== 检查关键Android配置 ==="
-          echo ""
-          echo "android.api:"
-          grep "^android.api" buildozer.spec && echo "  ✓ Found" || echo "  ✗ NOT FOUND"
-          echo ""
-          echo "android.build_tools:"
-          grep "^android.build_tools" buildozer.spec && echo "  ✓ Found" || echo "  ✗ NOT FOUND"
-          echo ""
-          echo "android.ndk:"
-          grep "^android.ndk" buildozer.spec && echo "  ✓ Found" || echo "  ✗ NOT FOUND"
-          echo ""
-          echo "android.sdk_path:"
-          grep "^android.sdk_path" buildozer.spec && echo "  ✓ Found" || echo "  ✗ NOT FOUND"
-          echo ""
-          echo "android.ndk_path:"
-          grep "^android.ndk_path" buildozer.spec && echo "  ✓ Found" || echo "  ✗ NOT FOUND"
-          echo ""
-          echo "requirements:"
-          grep "^requirements" buildozer.spec && echo "  ✓ Found" || echo "  ✗ NOT FOUND"
-          echo ""
-          echo "=== 配置验证完成 ==="
-          echo "✅ Config verification complete!"
-
-      # =========================================
-      # 步骤14：【核心步骤】构建APK
-      # 【关键修复①】输出详细日志到文件
-      # =========================================
-      - name: Build APK with Buildozer (Verbose)
+      # ===========================================
+      # 步骤9：构建APK（详细日志）
+      # ===========================================
+      - name: Build APK
         id: build
         run: |
-          echo "🔨 Starting Buildozer build..."
-          echo "================================================"
-          echo "Build started at: $(date)"
-          echo "================================================"
-          
-          # 设置环境变量
-          export ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT
-          export ANDROID_HOME=$ANDROID_HOME
-          export ANDROID_NDK_HOME=$ANDROID_NDK_HOME
-          export PATH="$ANDROID_SDK_ROOT/build-tools/34.0.0:$ANDROID_SDK_ROOT/build-tools/33.0.2:$ANDROID_SDK_ROOT/platform-tools:/usr/local/bin:$PATH"
-          
-          # 执行构建，输出到日志文件并同时显示
-          # 使用 set +e 允许命令失败后继续执行
+          export PATH="$ANDROID_SDK_ROOT/build-tools/33.0.2:$ANDROID_SDK_ROOT/platform-tools:$PATH"
           set +e
-          
-          buildozer -v android debug 2>&1 | tee buildozer_full.log
-          BUILD_EXIT_CODE=${PIPESTATUS[0]}
-          
+          buildozer android debug --verbose 2>&1 | tee buildozer_final.log
+          BUILD_CODE=$?
           set -e
           
-          echo ""
-          echo "================================================"
-          echo "Build finished at: $(date)"
-          echo "Build exit code: $BUILD_EXIT_CODE"
-          echo "================================================"
-          
-          # 保存退出码供后续步骤使用
-          echo "build_exit_code=$BUILD_EXIT_CODE" >> $GITHUB_OUTPUT
-          
-          # 检查APK是否生成
           if ls bin/*.apk 1>/dev/null 2>&1; then
-            echo "✅ APK file(s) found!"
-            ls -lh bin/*.apk
             echo "apk_exists=true" >> $GITHUB_OUTPUT
           else
-            echo "❌ No APK files found in bin/"
             echo "apk_exists=false" >> $GITHUB_OUTPUT
           fi
+          
+          echo ""
+          echo "=== 构建日志最后100行 ==="
+          tail -100 buildozer_final.log
         env:
           BUILDOZER_WARN_ON_ROOT: 0
 
-      # =========================================
-      # 步骤15：【调试】显示构建日志最后500行
-      # 无论成功失败都显示
-      # =========================================
-      - name: Show Build Log (Last 500 lines)
-        if: always()
-        run: |
-          echo "📋 Build log (last 500 lines):"
-          echo "================================================"
-          tail -500 buildozer_full.log 2>/dev/null || echo "No build log found"
-
-      # =========================================
-      # 步骤16：【调试】显示错误关键词
-      # =========================================
-      - name: Search for Errors in Log
-        if: always()
-        run: |
-          echo "🔍 Searching for errors in build log..."
-          echo ""
-          echo "=== Lines containing 'error' ==="
-          grep -i "error" buildozer_full.log 2>/dev/null | tail -50 || echo "No 'error' found"
-          echo ""
-          echo "=== Lines containing 'failed' ==="
-          grep -i "failed" buildozer_full.log 2>/dev/null | tail -30 || echo "No 'failed' found"
-          echo ""
-          echo "=== Lines containing 'exception' ==="
-          grep -i "exception" buildozer_full.log 2>/dev/null | tail -20 || echo "No 'exception' found"
-          echo ""
-          echo "=== Lines containing 'not found' ==="
-          grep -i "not found" buildozer_full.log 2>/dev/null | tail -20 || echo "No 'not found' found"
-          echo ""
-          echo "=== Lines containing 'license' ==="
-          grep -i "license" buildozer_full.log 2>/dev/null | tail -10 || echo "No 'license' found"
-
-      # =========================================
-      # 步骤17：上传构建日志（无论成功失败）
-      # =========================================
+      # ===========================================
+      # 步骤10：上传日志和APK
+      # ===========================================
       - name: Upload Build Log
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: buildozer-log
-          path: buildozer_full.log
-          retention-days: 7
-          if-no-files-found: ignore
+          name: build-log
+          path: buildozer_final.log
+          if-no-files-found: warn
 
-      # =========================================
-      # 步骤18：上传APK（仅当APK存在时）
-      # 【关键修复②】添加条件判断
-      # =========================================
-      - name: Upload APK artifact
+      - name: Upload APK
         if: steps.build.outputs.apk_exists == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: teleprompter-apk
           path: bin/*.apk
-          retention-days: 30
 
-      # =========================================
-      # 步骤19：构建结果摘要
-      # =========================================
-      - name: Build Summary
+      - name: Build Result
         if: always()
         run: |
-          echo "## 📱 Build Result" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          
           if [ "${{ steps.build.outputs.apk_exists }}" == "true" ]; then
-            echo "### ✅ APK Generated Successfully!" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
-            ls -lh bin/*.apk >> $GITHUB_STEP_SUMMARY 2>/dev/null
-            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "✅ APK生成成功！"
+            ls -lh bin/*.apk
           else
-            echo "### ❌ APK Generation Failed" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "Build exit code: ${{ steps.build.outputs.build_exit_code }}" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "**Check the uploaded build log for details.**" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "### 🔍 Quick Error Summary" >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
-            grep -i "error\|failed\|exception" buildozer_full.log 2>/dev/null | tail -20 >> $GITHUB_STEP_SUMMARY || echo "See full log" >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "❌ APK生成失败，请下载build-log查看详细错误"
+            echo "=== 错误摘要 ==="
+            grep -i "error\|failed\|exception" buildozer_final.log | tail -30 || true
+            exit 1
           fi
-
-      # =========================================
-      # 步骤20：如果构建失败则报错退出
-      # =========================================
-      - name: Fail if APK not generated
-        if: steps.build.outputs.apk_exists != 'true'
-        run: |
-          echo "❌ Build failed - APK was not generated"
-          echo "Please check the build log artifact for details"
-          exit 1
