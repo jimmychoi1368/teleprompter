@@ -1,9 +1,8 @@
 # =============================================================================
-# GitHub Actions - Android APK Build (极简版 v5.0)
+# GitHub Actions - Android APK Build (v6.0 - 修复JAXB问题)
 # =============================================================================
-# 步骤数：10步（极简流程）
-# 验证方式：buildozer android printconf（Buildozer自带命令）
-# 日志捕获：buildozer_final.log（100%可靠）
+# 修复日志错误：javax.xml.bind.annotation.XmlSchema 类缺失
+# 方案：使用JDK 11 + 删除旧版tools目录，强制使用新版cmdline-tools
 # =============================================================================
 name: Build Android APK
 
@@ -30,54 +29,103 @@ jobs:
         uses: actions/checkout@v4
 
       # ===========================================
-      # 步骤2：设置Python + Java
+      # 步骤2：设置Python
       # ===========================================
-      - name: Setup Python and Java
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.10"
-      - uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
 
       # ===========================================
-      # 步骤3：设置Android SDK + 安装组件
+      # 步骤3：设置JDK 11（修复JAXB问题）
+      # 修复日志错误：javax.xml.bind.annotation.XmlSchema 类缺失
+      # JDK 17移除了JAXB模块，降级到JDK 11可解决
+      # ===========================================
+      - name: Setup JDK 11
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '11'
+
+      - name: Verify Java Version
+        run: |
+          echo "=== Java Version ==="
+          java -version
+          echo "JAVA_HOME: $JAVA_HOME"
+
+      # ===========================================
+      # 步骤4：设置Android SDK
       # ===========================================
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
           accept-android-sdk-licenses: true
 
-      - name: Install SDK Components
+      # ===========================================
+      # 步骤5：修复SDK tools问题 + 安装组件
+      # 修复日志错误：旧版sdkmanager与JDK不兼容
+      # 方案：删除旧版tools目录，强制使用新版cmdline-tools
+      # ===========================================
+      - name: Fix SDK Tools and Install Components
         run: |
+          echo "=== 删除旧版tools目录（解决JAXB兼容问题） ==="
+          rm -rf $ANDROID_SDK_ROOT/tools
+          echo "✓ 旧版tools已删除"
+          
+          echo ""
+          echo "=== 验证cmdline-tools可用 ==="
+          which sdkmanager
+          sdkmanager --version
+          
+          echo ""
+          echo "=== 接受所有许可 ==="
           yes | sdkmanager --licenses || true
-          sdkmanager "platform-tools" "platforms;android-33" "build-tools;33.0.2" "ndk;$ANDROID_NDK_VERSION"
+          
+          echo ""
+          echo "=== 安装SDK组件 ==="
+          sdkmanager "platform-tools"
+          sdkmanager "platforms;android-33"
+          sdkmanager "build-tools;33.0.2"
+          sdkmanager "ndk;$ANDROID_NDK_VERSION"
+          
+          echo ""
+          echo "=== 写入许可文件 ==="
           mkdir -p $ANDROID_SDK_ROOT/licenses
           echo -e "\n8933bad161af4178b1185d1a37fbf41ea5269c55\nd56f5187479451eabf01fb78af6dfcb131a6481e\n24333f8a63b6825ea9c5514f83c2829b004d1fee" > $ANDROID_SDK_ROOT/licenses/android-sdk-license
+          
+          echo ""
+          echo "=== 验证安装 ==="
+          ls -la $ANDROID_SDK_ROOT/build-tools/
+          ls -la $ANDROID_SDK_ROOT/platforms/
 
       # ===========================================
-      # 步骤4：安装系统依赖
+      # 步骤6：安装系统依赖
+      # 修复日志错误：ssl module in Python is not available
       # ===========================================
       - name: Install System Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential git zip unzip python3-pip python3-dev \
+          sudo apt-get install -y \
+            build-essential git zip unzip \
+            python3-pip python3-dev libssl-dev \
             libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev \
             libportmidi-dev libswscale-dev libavformat-dev libavcodec-dev zlib1g-dev \
             libgstreamer1.0-dev gstreamer1.0-plugins-base libgstreamer-plugins-base1.0-dev \
-            libffi-dev libssl-dev autoconf automake libtool cmake ccache lld wget
+            libffi-dev autoconf automake libtool cmake ccache lld wget
 
       # ===========================================
-      # 步骤5：安装Python依赖
+      # 步骤7：安装Python依赖
       # ===========================================
       - name: Install Python Dependencies
         run: |
           pip install --upgrade pip wheel setuptools
           pip install buildozer==1.5.0 cython==0.29.33 kivy==2.2.1
+          echo ""
+          echo "=== 验证pip无SSL警告 ==="
+          pip --version
 
       # ===========================================
-      # 步骤6：下载Vosk模型
+      # 步骤8：下载Vosk模型
       # ===========================================
       - name: Download Vosk Model
         run: |
@@ -85,28 +133,38 @@ jobs:
           unzip -q vosk-model-small-en-us-0.15.zip
 
       # ===========================================
-      # 步骤7：配置Buildozer SDK目录（符号链接）
+      # 步骤9：配置Buildozer SDK目录
+      # 修复日志错误：ln: failed to create symbolic link...File exists
       # ===========================================
       - name: Setup Buildozer SDK
         run: |
-          rm -rf ~/.buildozer .buildozer
+          echo "=== 彻底清理旧缓存 ==="
+          rm -rf ~/.buildozer
+          rm -rf .buildozer
+          
+          echo "=== 创建目录结构 ==="
           mkdir -p ~/.buildozer/android/platform
+          
+          echo "=== 创建SDK符号链接 ==="
           ln -sf $ANDROID_SDK_ROOT ~/.buildozer/android/platform/android-sdk
-          ln -sf $ANDROID_SDK_ROOT/build-tools/33.0.2/aapt /usr/local/bin/aapt 2>/dev/null || sudo ln -sf $ANDROID_SDK_ROOT/build-tools/33.0.2/aapt /usr/local/bin/aapt
+          
+          echo "=== 验证符号链接 ==="
+          ls -la ~/.buildozer/android/platform/
+          ls -la ~/.buildozer/android/platform/android-sdk/build-tools/
 
       # ===========================================
-      # 步骤8：打印Buildozer实际配置（用自带命令）
+      # 步骤10：打印Buildozer配置
       # ===========================================
       - name: Print Buildozer Config
         run: |
-          echo "=== Buildozer实际读取的配置 ==="
-          buildozer android printconf || echo "printconf not available, showing spec:"
+          echo "=== Buildozer实际配置 ==="
+          buildozer android printconf || echo "printconf命令不可用，显示spec文件："
           echo ""
           echo "=== buildozer.spec关键配置 ==="
-          grep -E "^(android\.|requirements)" buildozer.spec | head -20
+          grep -E "^(android\.|p4a\.|requirements)" buildozer.spec | head -25
 
       # ===========================================
-      # 步骤9：构建APK（详细日志）
+      # 步骤11：构建APK
       # ===========================================
       - name: Build APK
         id: build
@@ -130,7 +188,7 @@ jobs:
           BUILDOZER_WARN_ON_ROOT: 0
 
       # ===========================================
-      # 步骤10：上传日志和APK
+      # 步骤12：上传日志和APK
       # ===========================================
       - name: Upload Build Log
         if: always()
