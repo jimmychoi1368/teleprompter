@@ -92,16 +92,16 @@ jobs:
 
       # =========================================
       # 步骤7：安装SDK组件
-      # 【修复v2】安装所有可用的build-tools版本，包括36.0.0
-      # 注意：36.1.0在sdkmanager中可能不存在，实际是36.0.0
+      # 【修复v3】版本必须与buildozer.spec完全一致！
+      # buildozer.spec配置：android.api = 33, android.build_tools = 33.0.2
       # =========================================
       - name: Install SDK Components
         run: |
           echo "📦 Installing SDK components..."
-          
-          # 列出所有可用的build-tools版本
-          echo "📋 Available build-tools versions:"
-          sdkmanager --list 2>/dev/null | grep "build-tools" | head -20 || true
+          echo ""
+          echo "【关键】版本必须与buildozer.spec一致："
+          echo "  - android.api = 33 → 需要 platforms;android-33"
+          echo "  - android.build_tools = 33.0.2 → 需要 build-tools;33.0.2"
           echo ""
           
           # 再次接受所有许可
@@ -110,18 +110,19 @@ jobs:
           # 安装platform-tools
           sdkmanager "platform-tools"
           
-          # 安装platforms（多版本支持）
+          # 【关键】安装platforms;android-33（必须与android.api = 33一致）
+          echo "📦 Installing platforms..."
           sdkmanager "platforms;android-33"
-          sdkmanager "platforms;android-34"
-          sdkmanager "platforms;android-35" || true
+          echo "✓ platforms;android-33 installed"
           
-          # 【关键修复】安装所有可能需要的build-tools版本
-          # 按优先级从高到低安装
+          # 【关键】安装build-tools;33.0.2（必须与android.build_tools = 33.0.2一致）
           echo "📦 Installing build-tools..."
-          sdkmanager "build-tools;36.0.0" && echo "✓ 36.0.0 installed" || echo "✗ 36.0.0 not available"
-          sdkmanager "build-tools;35.0.0" && echo "✓ 35.0.0 installed" || echo "✗ 35.0.0 not available"
-          sdkmanager "build-tools;34.0.0" && echo "✓ 34.0.0 installed" || echo "✗ 34.0.0 not available"
-          sdkmanager "build-tools;33.0.2" && echo "✓ 33.0.2 installed" || echo "✗ 33.0.2 not available"
+          sdkmanager "build-tools;33.0.2"
+          echo "✓ build-tools;33.0.2 installed"
+          
+          # 备用版本（以防python-for-android请求其他版本）
+          sdkmanager "build-tools;34.0.0" || true
+          sdkmanager "build-tools;35.0.0" || true
           
           # 安装NDK
           sdkmanager "ndk;$ANDROID_NDK_VERSION"
@@ -129,29 +130,36 @@ jobs:
           echo ""
           echo "✅ SDK components installation complete!"
           echo ""
+          echo "📋 Installed platforms versions:"
+          ls -la $ANDROID_SDK_ROOT/platforms/
+          echo ""
           echo "📋 Installed build-tools versions:"
           ls -la $ANDROID_SDK_ROOT/build-tools/
           echo ""
-          echo "📋 Build-tools 36.0.0 contents (if exists):"
-          ls -la $ANDROID_SDK_ROOT/build-tools/36.0.0/ 2>/dev/null || ls -la $ANDROID_SDK_ROOT/build-tools/35.0.0/ 2>/dev/null || echo "Checking other versions..."
+          echo "📋 Build-tools 33.0.2 contents:"
+          ls -la $ANDROID_SDK_ROOT/build-tools/33.0.2/ | head -10
 
       # =========================================
       # 步骤8：配置环境变量和PATH
+      # 【修复】使用33.0.2版本（与buildozer.spec一致）
       # =========================================
       - name: Configure Environment
         run: |
           echo "🔧 Configuring environment..."
           
-          # 添加到PATH
-          echo "$ANDROID_SDK_ROOT/build-tools/34.0.0" >> $GITHUB_PATH
+          # 添加build-tools 33.0.2到PATH（优先级最高）
           echo "$ANDROID_SDK_ROOT/build-tools/33.0.2" >> $GITHUB_PATH
           echo "$ANDROID_SDK_ROOT/platform-tools" >> $GITHUB_PATH
           
-          # 创建符号链接
-          sudo ln -sf $ANDROID_SDK_ROOT/build-tools/34.0.0/aapt /usr/local/bin/aapt || true
-          sudo ln -sf $ANDROID_SDK_ROOT/build-tools/34.0.0/aapt2 /usr/local/bin/aapt2 || true
+          # 创建符号链接（使用33.0.2版本）
+          sudo ln -sf $ANDROID_SDK_ROOT/build-tools/33.0.2/aapt /usr/local/bin/aapt
+          sudo ln -sf $ANDROID_SDK_ROOT/build-tools/33.0.2/aapt2 /usr/local/bin/aapt2
+          sudo ln -sf $ANDROID_SDK_ROOT/build-tools/33.0.2/aidl /usr/local/bin/aidl
           
           echo "✅ Environment configured!"
+          echo ""
+          echo "📋 Symlinks created:"
+          ls -la /usr/local/bin/aapt /usr/local/bin/aapt2 /usr/local/bin/aidl 2>/dev/null || true
 
       # =========================================
       # 步骤9：安装系统依赖
@@ -327,21 +335,23 @@ jobs:
           echo "=== Build-tools versions installed ==="
           ls -la $ANDROID_SDK_ROOT/build-tools/
           echo ""
-          echo "=== 检查每个build-tools版本的关键工具 ==="
-          for bt_dir in $ANDROID_SDK_ROOT/build-tools/*/; do
-            bt_version=$(basename $bt_dir)
-            echo "--- $bt_version ---"
-            ls $bt_dir/aapt 2>/dev/null && echo "  ✓ aapt exists" || echo "  ✗ aapt missing"
-            ls $bt_dir/aapt2 2>/dev/null && echo "  ✓ aapt2 exists" || echo "  ✗ aapt2 missing"
-            ls $bt_dir/aidl 2>/dev/null && echo "  ✓ aidl exists" || echo "  ✗ aidl missing"
-          done
+          echo "=== 检查build-tools 33.0.2的关键工具 ==="
+          BT_DIR="$ANDROID_SDK_ROOT/build-tools/33.0.2"
+          echo "--- 33.0.2 ---"
+          ls $BT_DIR/aapt 2>/dev/null && echo "  ✓ aapt exists" || echo "  ✗ aapt missing"
+          ls $BT_DIR/aapt2 2>/dev/null && echo "  ✓ aapt2 exists" || echo "  ✗ aapt2 missing"
+          ls $BT_DIR/aidl 2>/dev/null && echo "  ✓ aidl exists" || echo "  ✗ aidl missing"
+          ls $BT_DIR/dx 2>/dev/null && echo "  ✓ dx exists" || echo "  ✗ dx missing (可能用d8替代)"
+          ls $BT_DIR/d8 2>/dev/null && echo "  ✓ d8 exists" || echo "  ✗ d8 missing"
           echo ""
           echo "=== Buildozer符号链接验证 ==="
           ls -la ~/.buildozer/android/platform/ 2>/dev/null || echo "Buildozer platform dir not found"
           ls -la ~/.buildozer/android/platform/android-sdk/build-tools/ 2>/dev/null || echo "Linked build-tools not found"
           echo ""
-          echo "=== buildozer.spec关键配置 ==="
-          grep -E "android.sdk_path|android.ndk_path|android.ndk|android.api|requirements|source.include" buildozer.spec || true
+          echo "=== buildozer.spec关键配置（原始文件） ==="
+          echo "【这些配置必须被Buildozer正确读取】"
+          grep -E "^android\.(api|build_tools|ndk|sdk_path|ndk_path)" buildozer.spec || true
+          grep -E "^requirements" buildozer.spec || true
           echo ""
           echo "=== Project Files ==="
           ls -la
@@ -350,6 +360,62 @@ jobs:
           ls -la vosk-model-small-en-us-0.15/ 2>/dev/null | head -5 || echo "Vosk model directory not found!"
           echo ""
           echo "✅ Environment verification complete!"
+
+      # =========================================
+      # 步骤13.5：【关键】验证Buildozer配置是否被正确读取
+      # =========================================
+      - name: Verify Buildozer Config Reading
+        run: |
+          echo "🔍 Verifying Buildozer reads config correctly..."
+          echo ""
+          echo "【重要】以下输出显示Buildozer实际读取的配置值"
+          echo "如果值与buildozer.spec不一致，说明配置名称写错或格式有问题"
+          echo ""
+          
+          # 使用buildozer的distclean确保干净状态
+          # buildozer distclean 2>/dev/null || true
+          
+          # 尝试获取Buildozer读取的配置（通过解析spec）
+          python3 << 'EOF'
+import configparser
+import os
+
+print("=== 解析 buildozer.spec ===")
+config = configparser.ConfigParser()
+config.read('buildozer.spec')
+
+# 检查关键Android配置
+android_keys = [
+    'android.api',
+    'android.minapi', 
+    'android.ndk',
+    'android.build_tools',
+    'android.sdk_path',
+    'android.ndk_path',
+    'android.archs',
+    'android.accept_sdk_license'
+]
+
+print("\n[app] section中的Android配置：")
+for key in android_keys:
+    try:
+        value = config.get('app', key)
+        print(f"  ✓ {key} = {value}")
+    except configparser.NoOptionError:
+        print(f"  ✗ {key} = NOT FOUND (Buildozer将使用默认值!)")
+
+# 检查requirements
+try:
+    req = config.get('app', 'requirements')
+    print(f"\n  ✓ requirements = {req}")
+except:
+    print(f"\n  ✗ requirements = NOT FOUND")
+
+print("\n=== 配置验证完成 ===")
+EOF
+          
+          echo ""
+          echo "✅ Config verification complete!"
 
       # =========================================
       # 步骤14：【核心步骤】构建APK

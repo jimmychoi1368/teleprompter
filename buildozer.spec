@@ -51,18 +51,27 @@ requirements = python3,kivy==2.2.1,pyjnius,android
 # Android 配置（必须在[app]section中！）
 # =============================================================================
 
-# Android API版本
-# 【重要】api版本要和platforms安装的版本匹配
-android.api = 34
+# =============================================================================
+# Android API 版本配置
+# 【官方文档来源】https://buildozer.readthedocs.io/en/latest/specifications.html
+# =============================================================================
+
+# android.api - 目标API版本（必须与安装的platforms;android-xx一致）
+# 官方配置名：android.api
+android.api = 33
+
+# android.minapi - 最低支持API版本
+# 官方配置名：android.minapi
 android.minapi = 24
 
-# 【重要】NDK版本格式是25c（对应ndk;25.2.9519653）
+# android.ndk - NDK版本（格式如25c，对应ndk;25.2.9519653）
+# 官方配置名：android.ndk
 android.ndk = 25c
 
-# 【关键修复】指定build-tools版本，避免Buildozer自动下载最新版
-# 对应日志错误：license is not accepted: Android SDK Build-Tools 36.1
-# 注意：正确的配置名称是 android.build_tools（不是android.build_tools_version）
-android.build_tools = 34.0.0
+# android.build_tools - 指定build-tools版本，避免Buildozer自动下载最新版
+# 官方配置名：android.build_tools（不是android.build_tools_version！）
+# 【重要】此配置告诉python-for-android使用指定版本的build-tools
+android.build_tools = 33.0.2
 
 # 目标架构
 android.archs = arm64-v8a

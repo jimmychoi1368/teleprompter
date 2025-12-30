@@ -80,6 +80,22 @@ if platform == 'android':
 # =============================================================================
 # Vosk语音识别引擎封装类
 # =============================================================================
+# 【重要修复】Vosk是C++原生库，无法通过python-for-android直接编译
+# 当前采用"优雅降级"策略：vosk不可用时，自动切换到手动模式
+# 后续可通过vosk-android AAR包集成真正的语音识别功能
+# =============================================================================
+
+# 尝试导入Vosk（可能不可用）
+VOSK_AVAILABLE = False
+try:
+    from vosk import Model as VoskModel, KaldiRecognizer
+    VOSK_AVAILABLE = True
+    print("[信息] Vosk库加载成功")
+except ImportError:
+    print("[警告] Vosk库未安装或不可用，将使用手动模式")
+    VoskModel = None
+    KaldiRecognizer = None
+
 class VoskRecognizer:
     """
     Vosk离线语音识别器封装类
@@ -88,6 +104,10 @@ class VoskRecognizer:
     - 自动下载/加载vosk-model-small-en-us-0.15模型
     - 处理音频流并返回识别结果
     - 每2-3秒更新一次识别结果
+    
+    【降级说明】
+    如果Vosk库不可用（如在Android上未正确集成），
+    load_model()会返回False，应用自动切换到手动翻页模式
     """
     
     def __init__(self):
@@ -97,6 +117,7 @@ class VoskRecognizer:
         self.is_running = False     # 识别是否正在运行
         self.result_queue = queue.Queue()  # 识别结果队列
         self.audio_queue = queue.Queue()   # 音频数据队列
+        self.vosk_available = VOSK_AVAILABLE  # Vosk是否可用
         
     def load_model(self):
         """
@@ -105,15 +126,26 @@ class VoskRecognizer:
         模型路径说明：
         - 安卓：存放在应用私有目录
         - 其他平台：存放在当前目录
+        
+        返回：
+        - True: 模型加载成功
+        - False: 模型加载失败（Vosk不可用或模型文件缺失）
         """
-        try:
-            from vosk import Model, KaldiRecognizer
+        # 【降级检查】如果Vosk库不可用，直接返回False
+        if not self.vosk_available:
+            print("[警告] Vosk库不可用，切换到手动模式")
+            return False
             
+        try:
             # 确定模型路径
             if platform == 'android':
                 # 安卓平台使用应用私有存储
-                from android.storage import app_storage_path
-                model_path = os.path.join(app_storage_path(), 'vosk-model-small-en-us-0.15')
+                try:
+                    from android.storage import app_storage_path
+                    model_path = os.path.join(app_storage_path(), 'vosk-model-small-en-us-0.15')
+                except ImportError:
+                    # 如果android.storage不可用，使用备用路径
+                    model_path = '/data/data/org.teleprompter.teleprompter/files/vosk-model-small-en-us-0.15'
             else:
                 # 其他平台使用当前目录
                 model_path = './vosk-model-small-en-us-0.15'
@@ -126,7 +158,7 @@ class VoskRecognizer:
             
             # 加载模型
             print(f"[信息] 正在加载Vosk模型: {model_path}")
-            self.model = Model(model_path)
+            self.model = VoskModel(model_path)
             
             # 创建识别器，采样率16000Hz（标准语音识别采样率）
             self.recognizer = KaldiRecognizer(self.model, 16000)
@@ -135,9 +167,6 @@ class VoskRecognizer:
             print("[成功] Vosk模型加载完成！")
             return True
             
-        except ImportError:
-            print("[错误] 未安装Vosk库，请运行: pip install vosk")
-            return False
         except Exception as e:
             print(f"[错误] 加载模型失败: {e}")
             return False
