@@ -363,58 +363,35 @@ jobs:
 
       # =========================================
       # 步骤13.5：【关键】验证Buildozer配置是否被正确读取
+      # 【修复】使用纯bash命令，避免heredoc导致的YAML语法错误
       # =========================================
       - name: Verify Buildozer Config Reading
         run: |
           echo "🔍 Verifying Buildozer reads config correctly..."
           echo ""
-          echo "【重要】以下输出显示Buildozer实际读取的配置值"
-          echo "如果值与buildozer.spec不一致，说明配置名称写错或格式有问题"
+          echo "【重要】以下配置必须在[app] section中且格式正确"
           echo ""
-          
-          # 使用buildozer的distclean确保干净状态
-          # buildozer distclean 2>/dev/null || true
-          
-          # 尝试获取Buildozer读取的配置（通过解析spec）
-          python3 << 'EOF'
-import configparser
-import os
-
-print("=== 解析 buildozer.spec ===")
-config = configparser.ConfigParser()
-config.read('buildozer.spec')
-
-# 检查关键Android配置
-android_keys = [
-    'android.api',
-    'android.minapi', 
-    'android.ndk',
-    'android.build_tools',
-    'android.sdk_path',
-    'android.ndk_path',
-    'android.archs',
-    'android.accept_sdk_license'
-]
-
-print("\n[app] section中的Android配置：")
-for key in android_keys:
-    try:
-        value = config.get('app', key)
-        print(f"  ✓ {key} = {value}")
-    except configparser.NoOptionError:
-        print(f"  ✗ {key} = NOT FOUND (Buildozer将使用默认值!)")
-
-# 检查requirements
-try:
-    req = config.get('app', 'requirements')
-    print(f"\n  ✓ requirements = {req}")
-except:
-    print(f"\n  ✗ requirements = NOT FOUND")
-
-print("\n=== 配置验证完成 ===")
-EOF
-          
+          echo "=== 检查关键Android配置 ==="
           echo ""
+          echo "android.api:"
+          grep "^android.api" buildozer.spec && echo "  ✓ Found" || echo "  ✗ NOT FOUND"
+          echo ""
+          echo "android.build_tools:"
+          grep "^android.build_tools" buildozer.spec && echo "  ✓ Found" || echo "  ✗ NOT FOUND"
+          echo ""
+          echo "android.ndk:"
+          grep "^android.ndk" buildozer.spec && echo "  ✓ Found" || echo "  ✗ NOT FOUND"
+          echo ""
+          echo "android.sdk_path:"
+          grep "^android.sdk_path" buildozer.spec && echo "  ✓ Found" || echo "  ✗ NOT FOUND"
+          echo ""
+          echo "android.ndk_path:"
+          grep "^android.ndk_path" buildozer.spec && echo "  ✓ Found" || echo "  ✗ NOT FOUND"
+          echo ""
+          echo "requirements:"
+          grep "^requirements" buildozer.spec && echo "  ✓ Found" || echo "  ✗ NOT FOUND"
+          echo ""
+          echo "=== 配置验证完成 ==="
           echo "✅ Config verification complete!"
 
       # =========================================
